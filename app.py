@@ -82,8 +82,8 @@ def run_automation():
         driver = webdriver.Chrome(options=chrome_options)
         wait = WebDriverWait(driver, 10)
         
-        # Xóa trắng khung Log trên giao diện trước khi chạy
-        txt_log.delete(1.0, tk.END)
+        # ĐÃ SỬA: Bỏ lệnh xóa log cũ, thêm vạch phân cách cho lần chạy mới
+        txt_log.insert(tk.END, f"\n----------------------------------------\n")
         txt_log.insert(tk.END, f"Bắt đầu chạy {len(data_list)} mã hàng...\n")
         root.update() # Cập nhật giao diện
 
@@ -93,14 +93,19 @@ def run_automation():
             qty_excel = item["qty"]
             
             try:
-                # Step 1: Điền mã hàng vào ô tìm kiếm
-                search_input = wait.until(EC.presence_of_element_located((By.ID, "productSearchInput")))
+                # Step 1: Tìm ô input và click vào nó trước (Cập nhật vượt qua ng-click mới của KiotViet)
+                search_input = wait.until(EC.element_to_be_clickable((By.ID, "productSearchInput")))
+                
+                # Giả lập thao tác click của người dùng để kích hoạt hàm onInputClick() của web
+                search_input.click()
+                time.sleep(0.5)
+                
                 search_input.send_keys(Keys.CONTROL + "a")
                 search_input.send_keys(Keys.DELETE)
                 search_input.send_keys(code)
                 
-                # Chờ cứng 5 giây cho web load kết quả mới (như bạn yêu cầu)
-                time.sleep(5) 
+                # Chờ cứng 2 giây cho web load kết quả mới
+                time.sleep(2) 
                 
                 # Step 2: Click vào kết quả bằng Javascript (Né AdGuard)
                 first_result = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".output-complete ul li")))
@@ -141,15 +146,17 @@ def run_automation():
                 time.sleep(1) 
                 
             except Exception as e_row:
-                # Nếu mã hàng nào bị lỗi (ví dụ không tìm thấy trên web), ghi log và chạy tiếp mã sau
-                error_msg = f"- LỖI Web: Mã hàng {code} không thể xử lý."
+                # Ghi log kèm theo chi tiết lỗi thật (str(e_row))
+                error_msg = f"- LỖI Web: Mã hàng {code}. Chi tiết: {str(e_row)}"
                 log_messages.append(error_msg)
                 txt_log.insert(tk.END, error_msg + "\n")
                 root.update()
                 continue
 
         # Sau khi chạy xong toàn bộ danh sách
-        txt_log.insert(tk.END, "--- HOÀN TẤT QUÁ TRÌNH ---")
+        txt_log.insert(tk.END, "--- HOÀN TẤT QUÁ TRÌNH ---\n")
+        # Cuộn khung log xuống dòng cuối cùng
+        txt_log.see(tk.END)
         messagebox.showinfo("Thành công", f"Đã chạy xong {len(data_list)} mã hàng!\nXem Log để biết chi tiết.")
 
     except Exception as e:
