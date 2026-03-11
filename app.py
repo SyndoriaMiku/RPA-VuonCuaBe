@@ -3,6 +3,7 @@ from tkinter import filedialog, messagebox
 import tkinter.scrolledtext as scrolledtext
 import openpyxl
 import time
+import threading
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -18,6 +19,21 @@ def choose_file():
     if file_path:
         entry_file_path.delete(0, tk.END)
         entry_file_path.insert(0, file_path)
+        
+def start_automation_thread():
+    # Làm mờ nút chạy để ngăn người dùng bấm nhiều lần
+    btn_run.config(state=tk.DISABLED)
+    
+    # Tạo một luồng phụ để chạy tool
+    thread = threading.Thread(target=run_automation_worker)
+    thread.daemon = True # Đảm bảo luồng phụ tự tắt khi bạn ấn X đóng phần mềm
+    thread.start()
+
+def run_automation_worker():
+    # Gọi hàm chạy chính
+    run_automation()
+    # Sau khi hàm chính chạy xong (hoặc bị lỗi), bật lại nút bấm
+    btn_run.config(state=tk.NORMAL)        
 
 def run_automation():
     file_path = entry_file_path.get()
@@ -80,12 +96,21 @@ def run_automation():
         chrome_options = Options()
         chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
         driver = webdriver.Chrome(options=chrome_options)
+        
+        # --- BẢN VÁ MỚI: TỰ ĐỘNG CHUYỂN ĐÚNG TAB KIOTVIET ---
+        for handle in driver.window_handles:
+            driver.switch_to.window(handle)
+            if "kiotviet.vn" in driver.current_url.lower():
+                break
+        # ----------------------------------------------------
+
         wait = WebDriverWait(driver, 10)
         
-        # ĐÃ SỬA: Bỏ lệnh xóa log cũ, thêm vạch phân cách cho lần chạy mới
         txt_log.insert(tk.END, f"\n----------------------------------------\n")
         txt_log.insert(tk.END, f"Bắt đầu chạy {len(data_list)} mã hàng...\n")
-        root.update() # Cập nhật giao diện
+        
+        # Vì chạy đa luồng, dùng tk.END thay thế root.update() chỗ này cho an toàn
+        txt_log.see(tk.END) 
 
         # Vòng lặp duyệt qua từng dòng dữ liệu lấy từ Excel
         for item in data_list:
@@ -93,10 +118,10 @@ def run_automation():
             qty_excel = item["qty"]
             
             try:
-                # Step 1: Tìm ô input và click vào nó trước (Cập nhật vượt qua ng-click mới của KiotViet)
+                # Step 1: Tìm ô input và click vào nó trước
                 search_input = wait.until(EC.element_to_be_clickable((By.ID, "productSearchInput")))
                 
-                # Giả lập thao tác click của người dùng để kích hoạt hàm onInputClick() của web
+                # Giả lập thao tác click của người dùng
                 search_input.click()
                 time.sleep(0.5)
                 
@@ -125,11 +150,10 @@ def run_automation():
                 total_value = qty_web + qty_excel
                 
                 if total_value < 0:
-                    # Ghi log và BỎ QUA không điền (continue sẽ nhảy sang mã tiếp theo)
                     error_msg = f"- Mã hàng {code} số lượng cân chỉnh không hợp lệ (Tổng: {total_value})"
                     log_messages.append(error_msg)
                     txt_log.insert(tk.END, error_msg + "\n")
-                    root.update()
+                    txt_log.see(tk.END)
                     continue 
                 
                 # Step 6: Điền số lượng bằng API AngularJS
@@ -142,20 +166,24 @@ def run_automation():
                     $el.triggerHandler('blur');
                 """, input_td, total_value)
                 
-                # Nghỉ 1 giây để AngularJS kịp lưu dữ liệu trước khi lặp lại ô tìm kiếm
+                # Nghỉ 1 giây để AngularJS kịp lưu dữ liệu
                 time.sleep(1) 
                 
             except Exception as e_row:
-                # Ghi log kèm theo chi tiết lỗi thật (str(e_row))
-                error_msg = f"- LỖI Web: Mã hàng {code}. Chi tiết: {str(e_row)}"
+                # --- BẢN VÁ MỚI: BẮT LỖI GỌN GÀNG ---
+                chi_tiet_loi = str(e_row)
+                if "Stacktrace" in chi_tiet_loi or "Timeout" in chi_tiet_loi:
+                    error_msg = f"- BỎ QUA: Mã {code} - Không tìm thấy sản phẩm trên KiotViet."
+                else:
+                    error_msg = f"- LỖI Web: Mã {code}. Chi tiết: {chi_tiet_loi.split(chr(10))[0]}"
+                
                 log_messages.append(error_msg)
                 txt_log.insert(tk.END, error_msg + "\n")
-                root.update()
+                txt_log.see(tk.END)
                 continue
 
         # Sau khi chạy xong toàn bộ danh sách
         txt_log.insert(tk.END, "--- HOÀN TẤT QUÁ TRÌNH ---\n")
-        # Cuộn khung log xuống dòng cuối cùng
         txt_log.see(tk.END)
         messagebox.showinfo("Thành công", f"Đã chạy xong {len(data_list)} mã hàng!\nXem Log để biết chi tiết.")
 
@@ -178,8 +206,8 @@ tk.Label(root, text="Tên Sheet (bỏ trống=mặc định):").grid(row=1, colu
 entry_sheet = tk.Entry(root, width=20)
 entry_sheet.grid(row=1, column=1, padx=5, pady=10, sticky="w")
 
-# Nút chạy tích hợp cả Excel + Web
-btn_run = tk.Button(root, text="▶ CHẠY TỰ ĐỘNG", command=run_automation, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
+# ĐÃ SỬA: Thay run_automation thành start_automation_thread để kích hoạt đa luồng
+btn_run = tk.Button(root, text="▶ CHẠY TỰ ĐỘNG", command=start_automation_thread, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
 btn_run.grid(row=2, column=0, columnspan=3, pady=15, ipadx=20, ipady=5)
 
 # Khung Log
