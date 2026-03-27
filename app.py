@@ -144,6 +144,7 @@ def run_automation():
                 # Step 4: Lấy số lượng trên web
                 list_cells = driver.find_elements(By.CSS_SELECTOR, "table[role='grid'] tbody tr:nth-child(1) td.cell-quantity.txtR")
                 txt_web_value = list_cells[0].text.strip()
+                txt_web_value = txt_web_value.replace(",", "").replace(" ", "")
                 qty_web = float(txt_web_value) if txt_web_value else 0
                 
                 # Step 5: Tính tổng và kiểm tra điều kiện
@@ -166,11 +167,11 @@ def run_automation():
                     $el.triggerHandler('blur');
                 """, input_td, total_value)
                 
-                # Nghỉ 1 giây để AngularJS kịp lưu dữ liệu
+                
                 time.sleep(1) 
                 
             except Exception as e_row:
-                # --- BẢN VÁ MỚI: BẮT LỖI GỌN GÀNG ---
+                
                 chi_tiet_loi = str(e_row)
                 if "Stacktrace" in chi_tiet_loi or "Timeout" in chi_tiet_loi:
                     error_msg = f"- BỎ QUA: Mã {code} - Không tìm thấy sản phẩm trên KiotViet."
