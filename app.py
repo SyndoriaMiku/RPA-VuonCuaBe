@@ -35,6 +35,28 @@ def run_automation_worker():
     # Sau khi hàm chính chạy xong (hoặc bị lỗi), bật lại nút bấm
     btn_run.config(state=tk.NORMAL)        
 
+def append_log(message):
+    txt_log.config(state=tk.NORMAL)
+    txt_log.insert(tk.END, message)
+    txt_log.see(tk.END)
+    txt_log.config(state=tk.DISABLED)
+
+def copy_selected_log(event=None):
+    try:
+        selected_text = txt_log.selection_get()
+    except tk.TclError:
+        return "break"
+
+    root.clipboard_clear()
+    root.clipboard_append(selected_text)
+    return "break"
+
+def select_all_log(event=None):
+    txt_log.tag_add(tk.SEL, "1.0", tk.END)
+    txt_log.mark_set(tk.INSERT, "1.0")
+    txt_log.see(tk.INSERT)
+    return "break"
+
 def run_automation():
     file_path = entry_file_path.get()
     sheet_name = entry_sheet.get()
@@ -106,11 +128,8 @@ def run_automation():
 
         wait = WebDriverWait(driver, 10)
         
-        txt_log.insert(tk.END, f"\n----------------------------------------\n")
-        txt_log.insert(tk.END, f"Bắt đầu chạy {len(data_list)} mã hàng...\n")
-        
-        # Vì chạy đa luồng, dùng tk.END thay thế root.update() chỗ này cho an toàn
-        txt_log.see(tk.END) 
+        append_log(f"\n----------------------------------------\n")
+        append_log(f"Bắt đầu chạy {len(data_list)} mã hàng...\n")
 
         # Vòng lặp duyệt qua từng dòng dữ liệu lấy từ Excel
         for item in data_list:
@@ -129,8 +148,8 @@ def run_automation():
                 search_input.send_keys(Keys.DELETE)
                 search_input.send_keys(code)
                 
-                # Chờ cứng 2 giây cho web load kết quả mới
-                time.sleep(2) 
+                # Chờ cứng 2.5 giây cho web load kết quả mới
+                time.sleep(2.5) 
                 
                 # Step 2: Click vào kết quả bằng Javascript (Né AdGuard)
                 first_result = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".output-complete ul li")))
@@ -153,8 +172,7 @@ def run_automation():
                 if total_value < 0:
                     error_msg = f"- Mã hàng {code} số lượng cân chỉnh không hợp lệ (Tổng: {total_value})"
                     log_messages.append(error_msg)
-                    txt_log.insert(tk.END, error_msg + "\n")
-                    txt_log.see(tk.END)
+                    append_log(error_msg + "\n")
                     continue 
                 
                 # Step 6: Điền số lượng bằng API AngularJS
@@ -179,13 +197,11 @@ def run_automation():
                     error_msg = f"- LỖI Web: Mã {code}. Chi tiết: {chi_tiet_loi.split(chr(10))[0]}"
                 
                 log_messages.append(error_msg)
-                txt_log.insert(tk.END, error_msg + "\n")
-                txt_log.see(tk.END)
+                append_log(error_msg + "\n")
                 continue
 
         # Sau khi chạy xong toàn bộ danh sách
-        txt_log.insert(tk.END, "--- HOÀN TẤT QUÁ TRÌNH ---\n")
-        txt_log.see(tk.END)
+        append_log("--- HOÀN TẤT QUÁ TRÌNH ---\n")
         messagebox.showinfo("Thành công", f"Đã chạy xong {len(data_list)} mã hàng!\nXem Log để biết chi tiết.")
 
     except Exception as e:
@@ -207,7 +223,6 @@ tk.Label(root, text="Tên Sheet (bỏ trống=mặc định):").grid(row=1, colu
 entry_sheet = tk.Entry(root, width=20)
 entry_sheet.grid(row=1, column=1, padx=5, pady=10, sticky="w")
 
-# ĐÃ SỬA: Thay run_automation thành start_automation_thread để kích hoạt đa luồng
 btn_run = tk.Button(root, text="▶ CHẠY TỰ ĐỘNG", command=start_automation_thread, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
 btn_run.grid(row=2, column=0, columnspan=3, pady=15, ipadx=20, ipady=5)
 
@@ -215,5 +230,9 @@ btn_run.grid(row=2, column=0, columnspan=3, pady=15, ipadx=20, ipady=5)
 tk.Label(root, text="Nhật ký chạy (Log):").grid(row=3, column=0, padx=10, sticky="nw")
 txt_log = scrolledtext.ScrolledText(root, width=65, height=10, fg="red", bg="#f9f9f9")
 txt_log.grid(row=4, column=0, columnspan=3, padx=10, pady=5)
+txt_log.config(state=tk.DISABLED, insertwidth=0, insertontime=0, insertofftime=0, takefocus=1)
+txt_log.bind("<Control-c>", copy_selected_log)
+txt_log.bind("<Control-a>", select_all_log)
+txt_log.bind("<Button-1>", lambda event: txt_log.focus_set())
 
 root.mainloop()
