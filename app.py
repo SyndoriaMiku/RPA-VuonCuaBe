@@ -4,6 +4,8 @@ import tkinter.scrolledtext as scrolledtext
 import openpyxl
 import time
 import threading
+import os
+import subprocess
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -28,6 +30,24 @@ def start_automation_thread():
     thread = threading.Thread(target=run_automation_worker)
     thread.daemon = True # Đảm bảo luồng phụ tự tắt khi bạn ấn X đóng phần mềm
     thread.start()
+
+def open_chrome_debug_window():
+    chrome_path = r"C:\Program Files\Google\Chrome\Application\chrome.exe"
+    if not os.path.exists(chrome_path):
+        messagebox.showerror("Lỗi", f"Không tìm thấy Chrome tại:\n{chrome_path}")
+        return
+
+    try:
+        subprocess.Popen(
+            [
+                chrome_path,
+                "--remote-debugging-port=9222",
+                "--user-data-dir=C:\\ChromeDebug",
+            ]
+        )
+        append_log("Đã mở Chrome Debug (port 9222).\n")
+    except Exception as e:
+        messagebox.showerror("Lỗi", f"Không thể mở Chrome Debug:\n{e}")
 
 def run_automation_worker():
     # Gọi hàm chạy chính
@@ -202,7 +222,6 @@ def run_automation():
 
         # Sau khi chạy xong toàn bộ danh sách
         append_log("--- HOÀN TẤT QUÁ TRÌNH ---\n")
-        messagebox.showinfo("Thành công", f"Đã chạy xong {len(data_list)} mã hàng!\nXem Log để biết chi tiết.")
 
     except Exception as e:
         messagebox.showerror("Lỗi Hệ Thống", f"Không thể kết nối với Web:\n{e}")
@@ -224,7 +243,10 @@ entry_sheet = tk.Entry(root, width=20)
 entry_sheet.grid(row=1, column=1, padx=5, pady=10, sticky="w")
 
 btn_run = tk.Button(root, text="▶ CHẠY TỰ ĐỘNG", command=start_automation_thread, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
-btn_run.grid(row=2, column=0, columnspan=3, pady=15, ipadx=20, ipady=5)
+btn_run.grid(row=2, column=0, columnspan=2, pady=15, ipadx=20, ipady=5)
+
+btn_open_chrome = tk.Button(root, text="Mở Chrome Debug", command=open_chrome_debug_window, font=("Arial", 10, "bold"))
+btn_open_chrome.grid(row=2, column=2, padx=5, pady=15, ipadx=10, ipady=5)
 
 # Khung Log
 tk.Label(root, text="Nhật ký chạy (Log):").grid(row=3, column=0, padx=10, sticky="nw")
