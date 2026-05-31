@@ -1,5 +1,5 @@
 import tkinter as tk
-from tkinter import filedialog, messagebox
+from tkinter import ttk, filedialog, messagebox
 import tkinter.scrolledtext as scrolledtext
 import openpyxl
 import time
@@ -36,16 +36,20 @@ def open_chrome_debug_window():
     if not os.path.exists(chrome_path):
         messagebox.showerror("Lỗi", f"Không tìm thấy Chrome tại:\n{chrome_path}")
         return
+    try:
+        os.system("taskkill /f /im chromedriver.exe >nul 2>&1")
+    except:
+        pass
 
     try:
         subprocess.Popen(
             [
                 chrome_path,
-                "--remote-debugging-port=9222",
+                "--remote-debugging-port=9999",
                 "--user-data-dir=C:\\ChromeDebug",
             ]
         )
-        append_log("Đã mở Chrome Debug (port 9222).\n")
+        append_log("Đã mở Chrome Debug (port 9999).\n")
     except Exception as e:
         messagebox.showerror("Lỗi", f"Không thể mở Chrome Debug:\n{e}")
 
@@ -80,6 +84,10 @@ def select_all_log(event=None):
 def run_automation():
     file_path = entry_file_path.get()
     sheet_name = entry_sheet.get()
+    try:
+        sleep_time = float(combo_sleep.get())
+    except ValueError:
+        sleep_time = 2.5
     
     if not file_path:
         messagebox.showerror("Lỗi", "Vui lòng chọn file Excel trước khi chạy.")
@@ -136,7 +144,7 @@ def run_automation():
     
     try:
         chrome_options = Options()
-        chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9222")
+        chrome_options.add_experimental_option("debuggerAddress", "127.0.0.1:9999")
         driver = webdriver.Chrome(options=chrome_options)
         
         # --- BẢN VÁ MỚI: TỰ ĐỘNG CHUYỂN ĐÚNG TAB KIOTVIET ---
@@ -168,8 +176,8 @@ def run_automation():
                 search_input.send_keys(Keys.DELETE)
                 search_input.send_keys(code)
                 
-                # Chờ cứng 2.5 giây cho web load kết quả mới
-                time.sleep(2.5) 
+                # Chờ web load kết quả mới dựa theo thiết lập UI
+                time.sleep(sleep_time) 
                 
                 # Step 2: Click vào kết quả bằng Javascript (Né AdGuard)
                 first_result = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, ".output-complete ul li")))
@@ -240,7 +248,15 @@ btn_browse.grid(row=0, column=2, padx=5, pady=10)
 
 tk.Label(root, text="Tên Sheet (bỏ trống=mặc định):").grid(row=1, column=0, padx=10, pady=10, sticky="e")
 entry_sheet = tk.Entry(root, width=20)
+entry_sheet.insert(0, "Cân Chỉnh Hàng Hóa")
 entry_sheet.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+
+frame_sleep = tk.Frame(root)
+frame_sleep.grid(row=1, column=2, padx=5, pady=10, sticky="w")
+tk.Label(frame_sleep, text="Chờ load web (giây):").pack(side=tk.LEFT)
+combo_sleep = ttk.Combobox(frame_sleep, values=["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0"], width=5)
+combo_sleep.set("2.5")
+combo_sleep.pack(side=tk.LEFT)
 
 btn_run = tk.Button(root, text="▶ CHẠY TỰ ĐỘNG", command=start_automation_thread, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
 btn_run.grid(row=2, column=0, columnspan=2, pady=15, ipadx=20, ipady=5)
