@@ -6,6 +6,8 @@ import time
 import threading
 import os
 import subprocess
+from openpyxl.utils.cell import coordinate_from_string, column_index_from_string, get_column_letter
+from openpyxl.utils.exceptions import CellCoordinatesException
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
@@ -13,21 +15,143 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.common.keys import Keys
 
+
+def format_row_ranges(rows):
+    if not rows:
+        return "Không có"
+
+    ranges = []
+    range_start = rows[0]
+    range_end = rows[0]
+
+    for row in rows[1:]:
+        if row == range_end + 1:
+            range_end = row
+            continue
+
+        ranges.append(str(range_start) if range_start == range_end else f"{range_start}-{range_end}")
+        range_start = range_end = row
+
+    ranges.append(str(range_start) if range_start == range_end else f"{range_start}-{range_end}")
+    return ", ".join(ranges)
+
+
+def summarize_data_column(sheet, column="B", first_row=4):
+    data_rows = [
+        row
+        for row in range(first_row, sheet.max_row + 1)
+        if sheet[f"{column}{row}"].value is not None
+        and str(sheet[f"{column}{row}"].value).strip()
+    ]
+
+    if not data_rows:
+        return f"Không tìm thấy dữ liệu ở cột {column} từ dòng {first_row} trở xuống."
+
+    return (
+        f"Các dòng sẽ xử lý ở cột {column}: {format_row_ranges(data_rows)}.\n"
+        f"Tổng số mã hàng: {len(data_rows)}."
+    )
+
+
+def collect_excel_data(sheet, code_column, quantity_column, start_row):
+    data_list = []
+
+    for current_row in range(start_row, sheet.max_row + 1):
+        code = sheet[f"{code_column}{current_row}"].value
+
+        # Chỉ xử lý ô mã hàng có dữ liệu, tự bỏ qua mọi dòng trống xen giữa
+        if code is None or not str(code).strip():
+            continue
+
+        qty_val = sheet[f"{quantity_column}{current_row}"].value
+        qty = float(qty_val) if qty_val is not None else 0
+
+        data_list.append({
+            "code": str(code).strip(),
+            "qty": qty,
+            "row": current_row,
+        })
+
+    return data_list
+
+
 def choose_file():
     file_path = filedialog.askopenfilename(
         title="Chọn File Excel",
-        filetypes=[("Excel Files", "*.xlsx *.xls"), ("All Files", "*.*")]
+        filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")]
     )
     if file_path:
         entry_file_path.delete(0, tk.END)
         entry_file_path.insert(0, file_path)
         
+        try:
+            wb = openpyxl.load_workbook(file_path, data_only=True)
+            sheet_name = entry_sheet.get()
+            if sheet_name and sheet_name in wb.sheetnames:
+                sheet = wb[sheet_name]
+            else:
+                sheet = wb.active
+
+            c2_value = sheet["C2"].value
+            if c2_value:
+                lbl_title.config(text=str(c2_value))
+                root.title(f"Auto Robot - {c2_value}")
+            else:
+                lbl_title.config(text="[Ô C2 Trống]")
+                root.title("Auto Robot")
+
+            try:
+                _, scan_column, _, scan_start_row = parse_start_cell(entry_start_cell.get())
+            except ValueError:
+                scan_column, scan_start_row = "B", 4
+
+            data_summary = summarize_data_column(sheet, scan_column, scan_start_row)
+            log_summary = (
+                f"\n--- ĐÃ TẢI FILE THÀNH CÔNG ---\n"
+                f"File: {os.path.basename(file_path)}\n"
+                f"Sheet: {sheet.title}\n"
+                f"{data_summary}\n"
+            )
+            append_log(log_summary)
+        except Exception:
+            lbl_title.config(text="[Lỗi đọc ô C2]")
+            root.title("Auto Robot")
+            messagebox.showerror("Lỗi đọc Excel", "Không thể đọc thông tin từ file Excel đã chọn.")
+
+def parse_start_cell(cell_address):
+    normalized_address = cell_address.strip().replace("$", "").upper()
+    if not normalized_address:
+        raise ValueError("Vui lòng nhập ô bắt đầu, ví dụ B4.")
+
+    try:
+        code_column, start_row = coordinate_from_string(normalized_address)
+        code_column_index = column_index_from_string(code_column)
+    except (ValueError, CellCoordinatesException) as exc:
+        raise ValueError("Ô bắt đầu không hợp lệ. Vui lòng nhập theo dạng B4, B18, ...") from exc
+
+    if start_row < 1:
+        raise ValueError("Dòng bắt đầu phải lớn hơn hoặc bằng 1.")
+
+    if code_column_index > 16382:
+        raise ValueError("Cột mã hàng phải đứng trước cột XFC để xác định được cột số lượng.")
+
+    quantity_column = get_column_letter(code_column_index + 2)
+    canonical_address = f"{code_column}{start_row}"
+    return canonical_address, code_column, quantity_column, start_row
+
+
 def start_automation_thread():
+    try:
+        start_cell_config = parse_start_cell(entry_start_cell.get())
+    except ValueError as exc:
+        messagebox.showerror("Lỗi", str(exc))
+        return
+
     # Làm mờ nút chạy để ngăn người dùng bấm nhiều lần
     btn_run.config(state=tk.DISABLED)
     
     # Tạo một luồng phụ để chạy tool
-    thread = threading.Thread(target=run_automation_worker)
+    thread = threading.Thread(target=run_automation_worker, args=(start_cell_config,))
     thread.daemon = True # Đảm bảo luồng phụ tự tắt khi bạn ấn X đóng phần mềm
     thread.start()
 
@@ -53,11 +177,12 @@ def open_chrome_debug_window():
     except Exception as e:
         messagebox.showerror("Lỗi", f"Không thể mở Chrome Debug:\n{e}")
 
-def run_automation_worker():
-    # Gọi hàm chạy chính
-    run_automation()
-    # Sau khi hàm chính chạy xong (hoặc bị lỗi), bật lại nút bấm
-    btn_run.config(state=tk.NORMAL)        
+def run_automation_worker(start_cell_config):
+    try:
+        run_automation(start_cell_config)
+    finally:
+        # Cập nhật giao diện từ main thread của Tkinter
+        root.after(0, lambda: btn_run.config(state=tk.NORMAL))
 
 def append_log(message):
     txt_log.config(state=tk.NORMAL)
@@ -81,9 +206,10 @@ def select_all_log(event=None):
     txt_log.see(tk.INSERT)
     return "break"
 
-def run_automation():
+def run_automation(start_cell_config):
     file_path = entry_file_path.get()
     sheet_name = entry_sheet.get()
+    start_cell, code_column, quantity_column, start_row = start_cell_config
     try:
         sleep_time = float(combo_sleep.get())
     except ValueError:
@@ -94,7 +220,7 @@ def run_automation():
         return
     
     # ---------------------------------------------------------
-    # PHẦN 1: ĐỌC TOÀN BỘ DỮ LIỆU EXCEL TỪ Ô B4
+    # PHẦN 1: ĐỌC TOÀN BỘ DỮ LIỆU EXCEL TỪ Ô ĐƯỢC CHỌN
     # ---------------------------------------------------------
     data_list = []
     try:
@@ -108,33 +234,14 @@ def run_automation():
         else:
             sheet = wb.active
             
-        current_row = 4
-        while True:
-            # Lấy giá trị cột B (Mã hàng)
-            code = sheet[f"B{current_row}"].value
-            
-            # Điều kiện dừng: Nếu ô B trống (None) thì kết thúc vòng lặp
-            if not code:
-                break
-                
-            # Lấy giá trị cột D (Số lượng)
-            qty_val = sheet[f"D{current_row}"].value
-            qty = float(qty_val) if qty_val is not None else 0
-            
-            # Lưu vào danh sách
-            data_list.append({
-                "code": str(code).strip(),
-                "qty": qty,
-                "row": current_row
-            })
-            current_row += 1
+        data_list = collect_excel_data(sheet, code_column, quantity_column, start_row)
             
     except Exception as e:
         messagebox.showerror("Lỗi Đọc Excel", f"Có lỗi xảy ra khi đọc file:\n{e}")
         return
 
     if not data_list:
-        messagebox.showwarning("Cảnh báo", "Không tìm thấy dữ liệu nào bắt đầu từ ô B4.")
+        messagebox.showwarning("Cảnh báo", f"Không tìm thấy dữ liệu nào bắt đầu từ ô {start_cell}.")
         return
 
     # ---------------------------------------------------------
@@ -157,6 +264,7 @@ def run_automation():
         wait = WebDriverWait(driver, 10)
         
         append_log(f"\n----------------------------------------\n")
+        append_log(f"Đọc Excel từ {start_cell}; số lượng tại cột {quantity_column}.\n")
         append_log(f"Bắt đầu chạy {len(data_list)} mã hàng...\n")
 
         # Vòng lặp duyệt qua từng dòng dữ liệu lấy từ Excel
@@ -240,34 +348,42 @@ root.title("Auto Robot")
 root.geometry("850x650")
 root.eval('tk::PlaceWindow . center')
 
-tk.Label(root, text="File Excel:").grid(row=0, column=0, padx=10, pady=10, sticky="e")
-entry_file_path = tk.Entry(root, width=45)
-entry_file_path.grid(row=0, column=1, padx=5, pady=10)
-btn_browse = tk.Button(root, text="Chọn File", command=choose_file)
-btn_browse.grid(row=0, column=2, padx=5, pady=10)
+lbl_title = tk.Label(root, text="Tiêu đề C2 sẽ hiển thị ở đây", font=("Arial", 14, "bold"), fg="#D32F2F")
+lbl_title.grid(row=0, column=0, columnspan=3, pady=15)
 
-tk.Label(root, text="Tên Sheet (bỏ trống=mặc định):").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+tk.Label(root, text="File Excel:").grid(row=1, column=0, padx=10, pady=10, sticky="e")
+entry_file_path = tk.Entry(root, width=45)
+entry_file_path.grid(row=1, column=1, padx=5, pady=10)
+btn_browse = tk.Button(root, text="Chọn File", command=choose_file)
+btn_browse.grid(row=1, column=2, padx=5, pady=10)
+
+tk.Label(root, text="Tên Sheet (bỏ trống=mặc định):").grid(row=2, column=0, padx=10, pady=10, sticky="e")
 entry_sheet = tk.Entry(root, width=20)
 entry_sheet.insert(0, "Cân Chỉnh Hàng Hóa")
-entry_sheet.grid(row=1, column=1, padx=5, pady=10, sticky="w")
+entry_sheet.grid(row=2, column=1, padx=5, pady=10, sticky="w")
 
 frame_sleep = tk.Frame(root)
-frame_sleep.grid(row=1, column=2, padx=5, pady=10, sticky="w")
+frame_sleep.grid(row=2, column=2, padx=5, pady=10, sticky="w")
 tk.Label(frame_sleep, text="Chờ load web (giây):").pack(side=tk.LEFT)
 combo_sleep = ttk.Combobox(frame_sleep, values=["1.5", "2.0", "2.5", "3.0", "3.5", "4.0", "4.5", "5.0"], width=5)
 combo_sleep.set("2.5")
 combo_sleep.pack(side=tk.LEFT)
 
+tk.Label(root, text="Ô bắt đầu mã hàng:").grid(row=3, column=0, padx=10, pady=10, sticky="e")
+entry_start_cell = tk.Entry(root, width=10)
+entry_start_cell.insert(0, "B4")
+entry_start_cell.grid(row=3, column=1, padx=5, pady=10, sticky="w")
+
 btn_run = tk.Button(root, text="▶ CHẠY TỰ ĐỘNG", command=start_automation_thread, bg="#4CAF50", fg="white", font=("Arial", 11, "bold"))
-btn_run.grid(row=2, column=0, columnspan=2, pady=15, ipadx=20, ipady=5)
+btn_run.grid(row=4, column=0, columnspan=2, pady=15, ipadx=20, ipady=5)
 
 btn_open_chrome = tk.Button(root, text="Mở Chrome Debug", command=open_chrome_debug_window, font=("Arial", 10, "bold"))
-btn_open_chrome.grid(row=2, column=2, padx=5, pady=15, ipadx=10, ipady=5)
+btn_open_chrome.grid(row=4, column=2, padx=5, pady=15, ipadx=10, ipady=5)
 
 # Khung Log
-tk.Label(root, text="Nhật ký chạy (Log):").grid(row=3, column=0, padx=10, sticky="nw")
+tk.Label(root, text="Nhật ký chạy (Log):").grid(row=5, column=0, padx=10, sticky="nw")
 txt_log = scrolledtext.ScrolledText(root, width=65, height=10, fg="red", bg="#f9f9f9")
-txt_log.grid(row=4, column=0, columnspan=3, padx=10, pady=5)
+txt_log.grid(row=6, column=0, columnspan=3, padx=10, pady=5)
 txt_log.config(state=tk.DISABLED, insertwidth=0, insertontime=0, insertofftime=0, takefocus=1)
 txt_log.bind("<Control-c>", copy_selected_log)
 txt_log.bind("<Control-a>", select_all_log)
