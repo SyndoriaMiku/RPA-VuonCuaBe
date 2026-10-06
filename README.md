@@ -56,7 +56,8 @@ Cổng phải khớp với `debug_port` trong `config.json` (mặc định `9999
 - Khớp cơ sở theo tiêu đề `C2`, ưu tiên số CS (`CS8`, `CS08`, `cs 08` đều là CS08), sau đó đến địa điểm: địa chỉ đầy đủ (`22 Vũ Trọng Phụng`) hoặc tên đường (`Vũ Trọng Phụng`). Không phân biệt hoa/thường và dấu.
 
 - Tool lấy số lượng hiện tại trên KiotViet và cộng với số lượng cân chỉnh trong Excel.
-- Nếu tổng nhỏ hơn 0, mã hàng đó sẽ bị bỏ qua và được ghi vào nhật ký.
+- Nếu tổng nhỏ hơn 0, mã hàng đó sẽ bị bỏ qua và được ghi vào nhật ký. Sản phẩm vẫn nằm trên phiếu với số lượng mặc định của KiotViet, cần sửa tay hoặc xóa trước khi lưu.
+- Nhật ký ghi **STT trên phiếu KiotViet** cho các mã đã được thêm vào phiếu (tổng âm, cần kiểm tra), để dễ tìm lại; mã không tìm thấy trên web thì ghi số dòng Excel.
 - Ô số lượng trống được tính là 0; ô không phải số thì mã đó bị bỏ qua.
 - Mã xuất hiện nhiều lần trong Excel sẽ được cộng dồn lên web (Tool cảnh báo trước khi chạy).
 - Tool chỉ chọn gợi ý tìm kiếm có chứa đúng mã hàng, và chỉ thao tác khi dòng đầu bảng kiểm kho là đúng sản phẩm đó.

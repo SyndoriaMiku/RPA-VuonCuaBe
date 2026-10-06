@@ -49,6 +49,11 @@ class App:
         self._refresh_cell_hint()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
+        # File đã dùng lần trước: load lại để hiện tiêu đề và tự đổi cơ sở như khi vừa chọn file
+        remembered_file = self.config["file_path"]
+        if remembered_file and os.path.isfile(remembered_file):
+            self.root.after(300, lambda: self.load_file(remembered_file))
+
     # ------------------------------------------------------------------
     # Giao diện
     # ------------------------------------------------------------------
@@ -340,6 +345,10 @@ class App:
             title="Chọn File Excel", filetypes=[("Excel Files", "*.xlsx"), ("All Files", "*.*")])
         if not file_path:
             return
+        self.load_file(file_path)
+
+    def load_file(self, file_path):
+        """Đọc tiêu đề C2, tóm tắt dữ liệu và tự đổi cơ sở trên web cho khớp file."""
         self.var_file.set(file_path)
 
         try:

@@ -73,3 +73,19 @@ def test_page_state_from_url():
     assert kv.page_state_from_url(base + "#/StockTakes/12345") == kv.PAGE_EDIT
     assert kv.page_state_from_url(base + "#/Products") == kv.PAGE_OTHER
     assert kv.page_state_from_url(base) == kv.PAGE_OTHER
+
+
+class FakeRow:
+    def __init__(self, order_text=None):
+        self.order_text = order_text
+
+    def find_element(self, by, selector):
+        if self.order_text is None:
+            raise LookupError
+        return FakeElement(self.order_text)
+
+
+def test_read_row_order():
+    assert kv.read_row_order(FakeRow(" 117 ")) == "117"
+    assert kv.read_row_order(FakeRow("")) is None
+    assert kv.read_row_order(FakeRow(None)) is None

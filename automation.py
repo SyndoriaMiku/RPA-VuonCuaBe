@@ -11,6 +11,14 @@ class RunStats:
     stopped: bool = False
 
 
+def item_label(item, exc=None):
+    """Sản phẩm đã có trên phiếu thì ghi STT trên KiotViet để dễ tìm lại; chưa có thì ghi dòng Excel."""
+    web_stt = getattr(exc, "web_stt", None)
+    if web_stt:
+        return f"Mã {item['code']} (STT {web_stt} trên KiotViet)"
+    return f"Mã {item['code']} (dòng {item['row']} Excel)"
+
+
 def run_items(driver, items, result_timeout, stop_event, log, progress, process=None):
     """Xử lý lần lượt từng mã hàng.
 
@@ -28,7 +36,7 @@ def run_items(driver, items, result_timeout, stop_event, log, progress, process=
             break
 
         code = item["code"]
-        label = f"Mã {code} (dòng {item['row']})"
+        label = item_label(item)
 
         try:
             if item["qty"] is None:
@@ -37,10 +45,10 @@ def run_items(driver, items, result_timeout, stop_event, log, progress, process=
             stats.ok += 1
         except kiotviet.SkipItem as exc:
             stats.skipped += 1
-            log(f"BỎ QUA: {label} - {exc}", "warn")
+            log(f"BỎ QUA: {item_label(item, exc)} - {exc}", "warn")
         except kiotviet.VerifyError as exc:
             stats.error += 1
-            log(f"CẦN KIỂM TRA: {label} - {exc}", "error")
+            log(f"CẦN KIỂM TRA: {item_label(item, exc)} - {exc}", "error")
         except Exception as exc:
             stats.error += 1
             first_line = str(exc).split("\n")[0]

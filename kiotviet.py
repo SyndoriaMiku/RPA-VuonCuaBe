@@ -11,6 +11,7 @@ RESULT_ITEM_SELECTOR = ".output-complete ul li"
 FIRST_ROW_SELECTOR = "table[role='grid'] tbody tr:nth-child(1)"
 QUANTITY_CELL_SELECTOR = "td.cell-quantity.txtR"
 QUANTITY_INPUT_SELECTOR = "td.cell-order-number input"
+ORDER_CELL_SELECTOR = "td.cell-order"  # Cột STT; KiotViet đánh số giảm dần, dòng mới thêm có STT lớn nhất
 NOTE_TEXTAREA_ID = "stockTakeDes"
 ADD_STOCKTAKE_SELECTOR = 'a[ng-click="addNew()"]'
 BRANCH_SELECT_ID = "cbSelectBranch"
@@ -21,11 +22,19 @@ PAGE_EDIT = "edit"      # Đang tạo/sửa phiếu: #/StockTakes/0, #/StockTake
 PAGE_OTHER = "other"
 
 
-class SkipItem(Exception):
+class ItemError(Exception):
+    """Lỗi của một mã hàng; web_stt là STT của dòng trên phiếu KiotViet nếu sản phẩm đã được thêm vào."""
+
+    def __init__(self, message, web_stt=None):
+        super().__init__(message)
+        self.web_stt = web_stt
+
+
+class SkipItem(ItemError):
     """Mã hàng bị bỏ qua vì lý do nghiệp vụ (không tìm thấy, số lượng âm, ...)."""
 
 
-class VerifyError(Exception):
+class VerifyError(ItemError):
     """Đã điền số lượng nhưng giá trị đọc lại trên web không khớp."""
 
 
@@ -77,6 +86,15 @@ def find_matching_row(driver, code):
         # Bảng chưa dựng xong hoặc dòng vừa bị render lại: coi như chưa khớp, để chờ tiếp
         pass
     return False
+
+
+def read_row_order(row):
+    """STT của dòng trên phiếu kiểm kho, hoặc None nếu không đọc được."""
+    try:
+        text = row.find_element(By.CSS_SELECTOR, ORDER_CELL_SELECTOR).get_attribute("textContent").strip()
+    except Exception:
+        return None
+    return text or None
 
 
 def read_first_row_input(driver):
@@ -246,14 +264,15 @@ def process_item(driver, code, qty_excel, result_timeout):
     except TimeoutException:
         raise SkipItem("Không thấy sản phẩm xuất hiện ở dòng đầu bảng kiểm kho.")
 
-    # Bước 4: đọc số lượng hiện có trên web
+    # Bước 4: đọc STT trên phiếu (để báo lỗi dễ tìm lại) và số lượng hiện có trên web
+    web_stt = read_row_order(row)
     qty_cell = row.find_element(By.CSS_SELECTOR, QUANTITY_CELL_SELECTOR)
     qty_web = parse_web_number(qty_cell.text)
 
     # Bước 5: kiểm tra điều kiện
     total_value = qty_web + qty_excel
     if total_value < 0:
-        raise SkipItem(f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)})")
+        raise SkipItem(f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)})", web_stt)
 
     # Bước 6: điền số lượng bằng API AngularJS
     input_td = row.find_element(By.CSS_SELECTOR, QUANTITY_INPUT_SELECTOR)
@@ -281,7 +300,8 @@ def process_item(driver, code, qty_excel, result_timeout):
     except TimeoutException:
         raise VerifyError(
             f"đã điền nhưng đọc lại không khớp (mong đợi {format_qty(total_value)}, "
-            f"thực tế {read_first_row_input(driver)!r})"
+            f"thực tế {read_first_row_input(driver)!r})",
+            web_stt,
         )
 
     return qty_web, total_value

@@ -52,3 +52,14 @@ def test_stop_event_halts_before_next_item():
 
     stats, _, _ = run([item("A", 1, 4), item("B", 1, 5)], process, stop)
     assert stats.ok == 1 and stats.stopped is True
+
+
+def test_label_uses_web_stt_when_item_is_on_stocktake():
+    def process(driver, code, qty, timeout):
+        if code == "NEG":
+            raise kiotviet.SkipItem("tổng âm", web_stt="117")
+        raise kiotviet.SkipItem("không tìm thấy")
+
+    _, logs, _ = run([item("NEG", -5, 4), item("MISS", 1, 9)], process)
+    assert logs[0][1] == "BỎ QUA: Mã NEG (STT 117 trên KiotViet) - tổng âm"
+    assert logs[1][1] == "BỎ QUA: Mã MISS (dòng 9 Excel) - không tìm thấy"

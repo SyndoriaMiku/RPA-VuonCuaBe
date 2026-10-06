@@ -19,7 +19,8 @@ DEFAULTS = {
 }
 
 
-def load_config(path=CONFIG_PATH):
+def load_config(path=None):
+    path = path or CONFIG_PATH
     config = dict(DEFAULTS)
     try:
         with open(path, "r", encoding="utf-8") as f:
@@ -33,7 +34,8 @@ def load_config(path=CONFIG_PATH):
     return config
 
 
-def save_config(config, path=CONFIG_PATH):
+def save_config(config, path=None):
+    path = path or CONFIG_PATH
     data = {key: config.get(key, default) for key, default in DEFAULTS.items()}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
