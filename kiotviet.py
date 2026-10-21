@@ -1,3 +1,5 @@
+import re
+
 from selenium import webdriver
 from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
 from selenium.webdriver.chrome.options import Options
@@ -9,6 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 SEARCH_INPUT_ID = "productSearchInput"
 RESULT_ITEM_SELECTOR = ".output-complete ul li"
 FIRST_ROW_SELECTOR = "table[role='grid'] tbody tr:nth-child(1)"
+CODE_CELL_SELECTOR = "td.cell-code"
 QUANTITY_CELL_SELECTOR = "td.cell-quantity.txtR"
 QUANTITY_INPUT_SELECTOR = "td.cell-order-number input"
 ORDER_CELL_SELECTOR = "td.cell-order"  # Cột STT; KiotViet đánh số giảm dần, dòng mới thêm có STT lớn nhất
@@ -48,8 +51,18 @@ def parse_web_number(text):
     return float(cleaned) if cleaned else 0.0
 
 
+def code_equals(text, code):
+    return str(text or "").strip().lower() == code.strip().lower()
+
+
 def text_contains_code(text, code):
-    return code.strip().lower() in str(text).lower()
+    """Mã xuất hiện như một cụm trọn vẹn trong text.
+
+    Không được dính liền với ký tự hay gặp trong mã hàng (chữ, số, _ . - /), để mã
+    "7350107133709" không khớp nhầm với "7350107133709_D26.10".
+    """
+    pattern = r"(?<![\w.\-/])" + re.escape(code.strip()) + r"(?![\w.\-/])"
+    return re.search(pattern, str(text or ""), re.IGNORECASE) is not None
 
 
 def connect_driver(port):
@@ -65,8 +78,35 @@ def connect_driver(port):
     return driver
 
 
+_EXACT_RESULT_JS = """
+var code = arguments[1].trim().toLowerCase();
+var items = document.querySelectorAll(arguments[0]);
+for (var i = 0; i < items.length; i++) {
+    var nodes = [items[i]].concat(Array.prototype.slice.call(items[i].querySelectorAll('*')));
+    for (var j = 0; j < nodes.length; j++) {
+        // Chỉ lấy chữ nằm trực tiếp trong phần tử, không gộp chữ của phần tử con
+        var own = Array.prototype.filter.call(nodes[j].childNodes, function (n) { return n.nodeType === 3; })
+            .map(function (n) { return n.textContent; }).join('').trim().toLowerCase();
+        if (own === code) return items[i];
+    }
+}
+return null;
+"""
+
+
 def find_matching_result(driver, code):
-    """Trả về dòng gợi ý đầu tiên có chứa đúng mã đang tìm, hoặc False nếu chưa có."""
+    """Trả về gợi ý tìm kiếm đúng mã đang tìm, hoặc False nếu chưa có.
+
+    Ưu tiên gợi ý có một phần tử hiển thị đúng bằng mã; sau đó mới đến gợi ý chứa mã
+    như một cụm trọn vẹn. Không bao giờ chọn mã khác chỉ vì có chung phần đầu.
+    """
+    try:
+        exact = driver.execute_script(_EXACT_RESULT_JS, RESULT_ITEM_SELECTOR, code)
+    except Exception:
+        exact = None
+    if exact:
+        return exact
+
     for li in driver.find_elements(By.CSS_SELECTOR, RESULT_ITEM_SELECTOR):
         try:
             if text_contains_code(li.get_attribute("textContent"), code):
@@ -76,11 +116,21 @@ def find_matching_result(driver, code):
     return False
 
 
+def row_has_code(row, code):
+    """Dòng bảng kiểm kho có đúng mã hàng này không (so chính xác ô Mã hàng)."""
+    try:
+        cell_text = row.find_element(By.CSS_SELECTOR, CODE_CELL_SELECTOR).get_attribute("textContent")
+    except Exception:
+        # Không thấy ô Mã hàng (giao diện đổi): so cả dòng nhưng vẫn yêu cầu mã trọn vẹn
+        return text_contains_code(row.get_attribute("textContent"), code)
+    return code_equals(cell_text, code)
+
+
 def find_matching_row(driver, code):
-    """Trả về dòng đầu tiên của bảng kiểm kho nếu nó chứa đúng mã đang xử lý."""
+    """Trả về dòng đầu tiên của bảng kiểm kho nếu nó đúng là mã đang xử lý."""
     try:
         row = driver.find_element(By.CSS_SELECTOR, FIRST_ROW_SELECTOR)
-        if text_contains_code(row.get_attribute("textContent"), code):
+        if row_has_code(row, code):
             return row
     except Exception:
         # Bảng chưa dựng xong hoặc dòng vừa bị render lại: coi như chưa khớp, để chờ tiếp

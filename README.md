@@ -60,7 +60,7 @@ Cổng phải khớp với `debug_port` trong `config.json` (mặc định `9999
 - Nhật ký ghi **STT trên phiếu KiotViet** cho các mã đã được thêm vào phiếu (tổng âm, cần kiểm tra), để dễ tìm lại; mã không tìm thấy trên web thì ghi số dòng Excel.
 - Ô số lượng trống được tính là 0; ô không phải số thì mã đó bị bỏ qua.
 - Mã xuất hiện nhiều lần trong Excel sẽ được cộng dồn lên web (Tool cảnh báo trước khi chạy).
-- Tool chỉ chọn gợi ý tìm kiếm có chứa đúng mã hàng, và chỉ thao tác khi dòng đầu bảng kiểm kho là đúng sản phẩm đó.
+- Tool chỉ chọn gợi ý tìm kiếm có đúng mã hàng, và chỉ thao tác khi ô **Mã hàng** ở dòng đầu bảng kiểm kho trùng khớp chính xác với mã đó. Mã có chung phần đầu không bị nhầm với nhau (ví dụ `7350107133709` và `7350107133709_D26.10` là hai mã khác nhau).
 - Sau khi điền, Tool đọc lại ô số lượng để xác minh; nếu không khớp sẽ ghi `CẦN KIỂM TRA` vào nhật ký.
 - Nếu không tìm thấy sản phẩm hoặc thao tác web gặp lỗi, Tool bỏ qua mã hiện tại, ghi lỗi và tiếp tục với mã tiếp theo.
 - Sau khi chạy xong toàn bộ danh sách (không bấm Dừng), Tool điền "Cân hàng lệch" vào ô **Ghi chú** của phiếu. Ghi chú cũ được giữ lại, nội dung mới thêm vào dòng dưới; nếu đã có sẵn thì không điền lại. Có thể đổi nội dung bằng khóa `note_text` trong `config.json` (để trống để tắt).
