@@ -10,6 +10,7 @@ import branch_match
 import config as app_config
 import excel_reader
 import kiotviet
+import verify
 
 FONT = "Segoe UI"
 COLORS = {
@@ -502,6 +503,7 @@ class App:
             )
 
             if not stats.stopped:
+                self._verify_stocktake(driver, items)
                 self._fill_note(driver)
         finally:
             self.root.after(0, lambda: self._set_running(False))
@@ -581,6 +583,29 @@ class App:
             f"Tiêu đề file: {title}\nCơ sở đang làm việc trên web: {current[1]}\n\n"
             "Hai cơ sở có vẻ không khớp. Vẫn tiếp tục chạy?",
         )
+
+    def _verify_stocktake(self, driver, items):
+        """Đọc lại SL lệch trên từng trang của phiếu và so với số lượng trong Excel."""
+        self.log("--- KIỂM TRA LẠI SL LỆCH TRÊN PHIẾU ---")
+        try:
+            web_rows = kiotviet.read_stocktake_rows(driver)
+        except Exception as exc:
+            first_line = str(exc).split("\n")[0]
+            self.log(f"Không kiểm tra lại được phiếu: {first_line or type(exc).__name__}", "error")
+            return
+
+        report = verify.compare_adjustments(items, web_rows)
+        for level, text in verify.describe_report(report, kiotviet.format_qty):
+            self.log(text, level)
+
+        if not report.ok:
+            self.notify(
+                "showwarning", "Phiếu có chỗ chưa khớp Excel",
+                f"Sai SL lệch: {len(report.mismatched)} mã\n"
+                f"Không có trên phiếu: {len(report.missing)} mã\n"
+                f"Thừa trên phiếu: {len(report.extra)} mã\n\n"
+                "Xem chi tiết (kèm STT trên KiotViet) trong nhật ký và sửa trước khi lưu phiếu.",
+            )
 
     def _fill_note(self, driver):
         note_text = str(self.config["note_text"]).strip()

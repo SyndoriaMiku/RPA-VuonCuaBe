@@ -271,6 +271,78 @@ def change_branch(driver, branch_id, timeout=45):
     return current
 
 
+_ITEM_GRID_JS = """
+var cell = document.querySelector("table[role=grid] tbody td.cell-order-number");
+var grid = cell && window.jQuery && jQuery(cell).closest('.k-grid').data('kendoGrid');
+"""
+
+
+def _grid_state(driver):
+    return driver.execute_script(
+        _ITEM_GRID_JS + "if (!grid) return null; var ds = grid.dataSource;"
+        "return {page: ds.page(), pageSize: ds.pageSize(), totalPages: ds.totalPages(), total: ds.total()};")
+
+
+def _read_visible_rows(driver):
+    return driver.execute_script(_ITEM_GRID_JS + """
+        if (!grid) return [];
+        return grid.tbody.find('tr').toArray()
+            .filter(function (tr) { return tr.querySelector('td.cell-order-number'); })
+            .map(function (tr) {
+                var text = function (sel) { var e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
+                var quantities = tr.querySelectorAll('td.cell-quantity');
+                return {stt: text('td.cell-order'), code: text('td.cell-code'),
+                        adjustment: quantities.length > 1 ? quantities[1].textContent.trim() : ''};
+            });
+    """)
+
+
+def read_stocktake_rows(driver, timeout=10):
+    """Đọc toàn bộ dòng của phiếu kiểm kho: [{stt, code, adjustment (SL lệch)}].
+
+    KiotViet chỉ hiển thị 15 dòng mỗi trang, nên chuyển lần lượt từng trang để đọc đúng
+    những gì đang hiển thị, xong thì quay lại trang ban đầu.
+    """
+    state = _grid_state(driver)
+    if not state:
+        raise RuntimeError("Không tìm thấy bảng hàng hóa của phiếu kiểm kho.")
+    if not state["total"]:
+        return []
+
+    original_page = state["page"]
+    page_size = state["pageSize"] or state["total"]
+    rows = []
+    previous_page = None
+    try:
+        for page in range(1, state["totalPages"] + 1):
+            driver.execute_script(_ITEM_GRID_JS + "grid.dataSource.page(arguments[0]);", page)
+            expected = min(page_size, state["total"] - (page - 1) * page_size)
+
+            def page_ready(d):
+                visible = _read_visible_rows(d)
+                ok = (len(visible) == expected
+                      and all(r["code"] and r["adjustment"] for r in visible)
+                      and (previous_page is None or visible != previous_page))  # bảng đã chuyển sang trang mới
+                return visible if ok else False
+
+            try:
+                previous_page = WebDriverWait(driver, timeout, poll_frequency=0.2).until(page_ready)
+                rows.extend(previous_page)
+            except TimeoutException:
+                raise RuntimeError(f"Trang {page} của phiếu kiểm kho không hiển thị đủ {expected} dòng.")
+    finally:
+        try:
+            driver.execute_script(_ITEM_GRID_JS + "if (grid) grid.dataSource.page(arguments[0]);", original_page)
+        except Exception:
+            pass
+
+    if len(rows) != state["total"]:
+        raise RuntimeError(f"Đọc được {len(rows)} dòng nhưng phiếu có {state['total']} mã hàng.")
+    for row in rows:
+        row["adjustment"] = parse_web_number(row["adjustment"])
+    return rows
+
+
 def merge_note(current, note_text):
     """Ghép ghi chú mới vào nội dung sẵn có; trả về None nếu đã có đúng nội dung đó."""
     current = (current or "").strip()

@@ -63,7 +63,8 @@ Cổng phải khớp với `debug_port` trong `config.json` (mặc định `9999
 - Tool chỉ chọn gợi ý tìm kiếm có đúng mã hàng, và chỉ thao tác khi ô **Mã hàng** ở dòng đầu bảng kiểm kho trùng khớp chính xác với mã đó. Mã có chung phần đầu không bị nhầm với nhau (ví dụ `7350107133709` và `7350107133709_D26.10` là hai mã khác nhau).
 - Sau khi điền, Tool đọc lại ô số lượng để xác minh; nếu không khớp sẽ ghi `CẦN KIỂM TRA` vào nhật ký.
 - Nếu không tìm thấy sản phẩm hoặc thao tác web gặp lỗi, Tool bỏ qua mã hiện tại, ghi lỗi và tiếp tục với mã tiếp theo.
-- Sau khi chạy xong toàn bộ danh sách (không bấm Dừng), Tool điền "Cân hàng lệch" vào ô **Ghi chú** của phiếu. Ghi chú cũ được giữ lại, nội dung mới thêm vào dòng dưới; nếu đã có sẵn thì không điền lại. Có thể đổi nội dung bằng khóa `note_text` trong `config.json` (để trống để tắt).
+- Sau khi chạy xong toàn bộ danh sách (không bấm Dừng), Tool **kiểm tra lại phiếu**: đọc cột **SL lệch** trên từng trang (KiotViet hiển thị 15 mã mỗi trang) và so với số lượng trong Excel (cột D) theo từng mã. Mã trùng trong Excel được cộng dồn. Nhật ký ghi rõ mã **SAI** (kèm STT trên KiotViet), mã **không có trên phiếu**, mã **thừa trên phiếu** và tổng số mã khớp; nếu có chỗ chưa khớp thì Tool hiện popup nhắc sửa trước khi lưu.
+- Sau đó Tool điền "Cân hàng lệch" vào ô **Ghi chú** của phiếu. Ghi chú cũ được giữ lại, nội dung mới thêm vào dòng dưới; nếu đã có sẵn thì không điền lại. Có thể đổi nội dung bằng khóa `note_text` trong `config.json` (để trống để tắt).
 - Không nên sử dụng chuột hoặc bàn phím trong cửa sổ Chrome khi Tool đang chạy. Tool tự mở lại cửa sổ Chrome Debug nếu bị thu nhỏ (trang bị ẩn thì không gõ được mã vào ô tìm kiếm).
 - Lệch trên phiếu chưa cân bằng được KiotViet tính theo tồn kho hiện tại. Nếu có bán hàng sau lúc chạy Tool, Lệch sẽ thay đổi dù Thực tế không đổi, nên hãy cân bằng phiếu ngay sau khi chạy.
 
@@ -97,6 +98,7 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 - `gui.py`: giao diện Tkinter, xử lý luồng và lưu cấu hình.
 - `automation.py`: vòng lặp xử lý từng mã hàng, thống kê kết quả, xử lý dừng.
 - `kiotviet.py`: thao tác Selenium với KiotViet (nhận diện trang, đổi cơ sở, tạo phiếu, tìm, điền, xác minh).
+- `verify.py`: so SL lệch trên phiếu với số lượng trong Excel sau khi chạy.
 - `branch_match.py`: khớp tiêu đề file với cơ sở trên web (theo số CS hoặc địa điểm, không phân biệt dấu).
 - `excel_reader.py`: đọc Excel, phân tích ô bắt đầu, kiểm tra mã trùng/số lượng.
 - `config.py`: đọc/ghi `config.json`, dò đường dẫn Chrome.
