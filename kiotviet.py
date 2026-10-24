@@ -75,7 +75,24 @@ def connect_driver(port):
         driver.switch_to.window(handle)
         if "kiotviet.vn" in driver.current_url.lower():
             break
+    bring_to_front(driver)
     return driver
+
+
+def bring_to_front(driver):
+    """Mở lại cửa sổ nếu bị thu nhỏ và đưa tab lên trước.
+
+    Khi cửa sổ Chrome bị thu nhỏ hoặc che, trang ở trạng thái 'hidden' và phím gõ
+    không vào được ô tìm kiếm.
+    """
+    try:
+        window = driver.execute_cdp_cmd("Browser.getWindowForTarget", {})
+        if window["bounds"].get("windowState") == "minimized":
+            driver.execute_cdp_cmd("Browser.setWindowBounds",
+                                   {"windowId": window["windowId"], "bounds": {"windowState": "normal"}})
+        driver.execute_cdp_cmd("Page.bringToFront", {})
+    except Exception:
+        pass  # Không đưa lên trước được thì vẫn thử chạy; bước gõ mã sẽ báo lỗi nếu không gõ được
 
 
 _EXACT_RESULT_JS = """
@@ -293,11 +310,17 @@ def process_item(driver, code, qty_excel, result_timeout):
     wait = WebDriverWait(driver, 10)
 
     # Bước 1: nhập mã vào ô tìm kiếm
-    search_input = wait.until(EC.element_to_be_clickable((By.ID, SEARCH_INPUT_ID)))
-    search_input.click()
-    search_input.send_keys(Keys.CONTROL + "a")
-    search_input.send_keys(Keys.DELETE)
-    search_input.send_keys(code)
+    for attempt in range(2):
+        search_input = wait.until(EC.element_to_be_clickable((By.ID, SEARCH_INPUT_ID)))
+        search_input.click()
+        search_input.send_keys(Keys.CONTROL + "a")
+        search_input.send_keys(Keys.DELETE)
+        search_input.send_keys(code)
+        if search_input.get_attribute("value").strip() == code.strip():
+            break
+        bring_to_front(driver)
+    else:
+        raise RuntimeError("Không gõ được mã vào ô tìm kiếm. Hãy mở cửa sổ Chrome Debug, đừng thu nhỏ.")
 
     # Bước 2: chờ gợi ý chứa đúng mã rồi click (JS để né AdGuard)
     try:
@@ -322,7 +345,9 @@ def process_item(driver, code, qty_excel, result_timeout):
     # Bước 5: kiểm tra điều kiện
     total_value = qty_web + qty_excel
     if total_value < 0:
-        raise SkipItem(f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)})", web_stt)
+        raise SkipItem(
+            f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)}). Sản phẩm đã nằm trên phiếu "
+            f"với Thực tế mặc định của KiotViet, cần sửa tay hoặc xóa dòng trước khi lưu", web_stt)
 
     # Bước 6: điền số lượng bằng API AngularJS
     input_td = row.find_element(By.CSS_SELECTOR, QUANTITY_INPUT_SELECTOR)

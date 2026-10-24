@@ -64,7 +64,8 @@ Cổng phải khớp với `debug_port` trong `config.json` (mặc định `9999
 - Sau khi điền, Tool đọc lại ô số lượng để xác minh; nếu không khớp sẽ ghi `CẦN KIỂM TRA` vào nhật ký.
 - Nếu không tìm thấy sản phẩm hoặc thao tác web gặp lỗi, Tool bỏ qua mã hiện tại, ghi lỗi và tiếp tục với mã tiếp theo.
 - Sau khi chạy xong toàn bộ danh sách (không bấm Dừng), Tool điền "Cân hàng lệch" vào ô **Ghi chú** của phiếu. Ghi chú cũ được giữ lại, nội dung mới thêm vào dòng dưới; nếu đã có sẵn thì không điền lại. Có thể đổi nội dung bằng khóa `note_text` trong `config.json` (để trống để tắt).
-- Không nên sử dụng chuột hoặc bàn phím trong cửa sổ Chrome khi Tool đang chạy.
+- Không nên sử dụng chuột hoặc bàn phím trong cửa sổ Chrome khi Tool đang chạy. Tool tự mở lại cửa sổ Chrome Debug nếu bị thu nhỏ (trang bị ẩn thì không gõ được mã vào ô tìm kiếm).
+- Lệch trên phiếu chưa cân bằng được KiotViet tính theo tồn kho hiện tại. Nếu có bán hàng sau lúc chạy Tool, Lệch sẽ thay đổi dù Thực tế không đổi, nên hãy cân bằng phiếu ngay sau khi chạy.
 
 ## Môi trường phát triển
 
