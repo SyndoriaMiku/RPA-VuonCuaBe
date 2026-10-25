@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import kiotviet
 
@@ -9,6 +9,7 @@ class RunStats:
     skipped: int = 0
     error: int = 0
     stopped: bool = False
+    succeeded: list = field(default_factory=list)  # Các dòng Excel đã điền và xác minh thành công
 
 
 def item_label(item, exc=None):
@@ -43,6 +44,7 @@ def run_items(driver, items, result_timeout, stop_event, log, progress, process=
                 raise kiotviet.SkipItem("số lượng trong Excel không phải là số.")
             process(driver, code, item["qty"], result_timeout)
             stats.ok += 1
+            stats.succeeded.append(item)
         except kiotviet.SkipItem as exc:
             stats.skipped += 1
             log(f"BỎ QUA: {item_label(item, exc)} - {exc}", "warn")

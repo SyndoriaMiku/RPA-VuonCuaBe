@@ -63,3 +63,13 @@ def test_label_uses_web_stt_when_item_is_on_stocktake():
     _, logs, _ = run([item("NEG", -5, 4), item("MISS", 1, 9)], process)
     assert logs[0][1] == "BỎ QUA: Mã NEG (STT 117 trên KiotViet) - tổng âm"
     assert logs[1][1] == "BỎ QUA: Mã MISS (dòng 9 Excel) - không tìm thấy"
+
+
+def test_succeeded_lists_only_filled_items():
+    def process(driver, code, qty, timeout):
+        if code == "NEG":
+            raise kiotviet.SkipItem("tổng âm", web_stt="3")
+
+    items = [item("A", 1, 4), item("NEG", -5, 5), item("BAD", None, 6), item("B", 2, 7)]
+    stats, _, _ = run(items, process)
+    assert [i["code"] for i in stats.succeeded] == ["A", "B"]

@@ -417,9 +417,7 @@ def process_item(driver, code, qty_excel, result_timeout):
     # Bước 5: kiểm tra điều kiện
     total_value = qty_web + qty_excel
     if total_value < 0:
-        raise SkipItem(
-            f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)}). Sản phẩm đã nằm trên phiếu "
-            f"với Thực tế mặc định của KiotViet, cần sửa tay hoặc xóa dòng trước khi lưu", web_stt)
+        raise SkipItem(f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)})", web_stt)
 
     # Bước 6: điền số lượng bằng API AngularJS
     input_td = row.find_element(By.CSS_SELECTOR, QUANTITY_INPUT_SELECTOR)
