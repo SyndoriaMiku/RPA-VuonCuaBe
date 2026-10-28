@@ -11,7 +11,7 @@ from selenium.webdriver.support.ui import WebDriverWait
 SEARCH_INPUT_ID = "productSearchInput"
 RESULT_ITEM_SELECTOR = ".output-complete ul li"
 FIRST_ROW_SELECTOR = "table[role='grid'] tbody tr:nth-child(1)"
-CODE_CELL_SELECTOR = "td.cell-code"
+CODE_CELL_SELECTOR = "td.cell-code"  # class cũ; fallback sang data-field nếu không tìm thấy
 QUANTITY_CELL_SELECTOR = "td.cell-quantity.txtR"
 QUANTITY_INPUT_SELECTOR = "td.cell-order-number input"
 ORDER_CELL_SELECTOR = "td.cell-order"  # Cột STT; KiotViet đánh số giảm dần, dòng mới thêm có STT lớn nhất
@@ -19,6 +19,20 @@ NOTE_TEXTAREA_ID = "stockTakeDes"
 ADD_STOCKTAKE_SELECTOR = 'a[ng-click="addNew()"]'
 BRANCH_SELECT_ID = "cbSelectBranch"
 ITEM_ROW_SELECTOR = "table[role='grid'] tbody tr td.cell-order-number"
+
+# JS để tìm column index của ProductCode trong Kendo Grid (bền vững với class thay đổi)
+_CODE_COL_INDEX_JS = """
+return (function() {
+    var ths = document.querySelectorAll("table[role='grid'] thead th");
+    for (var i = 0; i < ths.length; i++) {
+        if (ths[i].getAttribute('data-field') === 'ProductCode') return i;
+    }
+    for (var i = 0; i < ths.length; i++) {
+        if (ths[i].className.indexOf('cell-code') !== -1) return i;
+    }
+    return -1;
+})();
+"""
 
 PAGE_LIST = "list"      # Danh sách phiếu kiểm kho: #/StockTakes
 PAGE_EDIT = "edit"      # Đang tạo/sửa phiếu: #/StockTakes/0, #/StockTakes/<id>
@@ -133,21 +147,60 @@ def find_matching_result(driver, code):
     return False
 
 
-def row_has_code(row, code):
-    """Dòng bảng kiểm kho có đúng mã hàng này không (so chính xác ô Mã hàng)."""
+def _get_code_cell(driver, row):
+    """Trả về ô Mã hàng của dòng, ưu tiên td.cell-code (class cũ), fallback sang data-field='ProductCode'."""
     try:
-        cell_text = row.find_element(By.CSS_SELECTOR, CODE_CELL_SELECTOR).get_attribute("textContent")
+        return row.find_element(By.CSS_SELECTOR, CODE_CELL_SELECTOR)
     except Exception:
-        # Không thấy ô Mã hàng (giao diện đổi): so cả dòng nhưng vẫn yêu cầu mã trọn vẹn
-        return text_contains_code(row.get_attribute("textContent"), code)
-    return code_equals(cell_text, code)
+        pass
+    # KiotViet đổi class (ví dụ: cell-114) → tìm qua vị trí cột theo header data-field
+    try:
+        col_idx = driver.execute_script(_CODE_COL_INDEX_JS)
+        if col_idx >= 0:
+            tds = row.find_elements(By.CSS_SELECTOR, "td")
+            if col_idx < len(tds):
+                return tds[col_idx]
+    except Exception:
+        pass
+    return None
+
+
+def row_has_code(row, code, driver=None):
+    """Dòng bảng kiểm kho có đúng mã hàng này không (so chính xác ô Mã hàng)."""
+    cell = _get_code_cell(driver, row) if driver else None
+    if cell is not None:
+        try:
+            return code_equals(cell.get_attribute("textContent"), code)
+        except Exception:
+            pass
+    else:
+        # Fallback 1: tìm trong từng td riêng lẻ (tránh concatenation làm dính số liền kề)
+        try:
+            tds = row.find_elements(By.CSS_SELECTOR, "td")
+            if tds:
+                for td in tds:
+                    try:
+                        td_text = td.get_attribute("textContent")
+                        if code_equals(td_text, code):
+                            return True
+                    except Exception:
+                        continue
+        except Exception:
+            pass
+
+    # Fallback 2: so toàn bộ text của row bằng text_contains_code (hỗ trợ cả mock/fake element trong test)
+    try:
+        row_text = row.get_attribute("textContent")
+        return text_contains_code(row_text, code)
+    except Exception:
+        return False
 
 
 def find_matching_row(driver, code):
     """Trả về dòng đầu tiên của bảng kiểm kho nếu nó đúng là mã đang xử lý."""
     try:
         row = driver.find_element(By.CSS_SELECTOR, FIRST_ROW_SELECTOR)
-        if row_has_code(row, code):
+        if row_has_code(row, code, driver=driver):
             return row
     except Exception:
         # Bảng chưa dựng xong hoặc dòng vừa bị render lại: coi như chưa khớp, để chờ tiếp
@@ -284,17 +337,28 @@ def _grid_state(driver):
 
 
 def _read_visible_rows(driver):
+    code_col_idx = driver.execute_script(_CODE_COL_INDEX_JS)
     return driver.execute_script(_ITEM_GRID_JS + """
         if (!grid) return [];
+        var codeColIdx = arguments[0];
         return grid.tbody.find('tr').toArray()
             .filter(function (tr) { return tr.querySelector('td.cell-order-number'); })
             .map(function (tr) {
                 var text = function (sel) { var e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
                 var quantities = tr.querySelectorAll('td.cell-quantity');
-                return {stt: text('td.cell-order'), code: text('td.cell-code'),
+                // Lấy mã hàng từ cột ProductCode (theo index động) hoặc fallback td.cell-code (class cũ)
+                var codeText = '';
+                if (codeColIdx != null && codeColIdx >= 0) {
+                    var tds = tr.querySelectorAll('td');
+                    if (codeColIdx < tds.length && tds[codeColIdx]) {
+                        codeText = tds[codeColIdx].textContent.trim();
+                    }
+                }
+                if (!codeText) codeText = text('td.cell-code');
+                return {stt: text('td.cell-order'), code: codeText,
                         adjustment: quantities.length > 1 ? quantities[1].textContent.trim() : ''};
             });
-    """)
+    """, code_col_idx)
 
 
 def read_stocktake_rows(driver, timeout=10):
