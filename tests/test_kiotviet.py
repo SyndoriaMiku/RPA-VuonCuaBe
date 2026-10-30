@@ -89,22 +89,58 @@ def test_find_matching_result_prefers_exact_element_match():
     assert kv.find_matching_result(FakeDriver([FakeElement("7350107133709 x")], exact=exact), "7350107133709") is exact
 
 
+class GridRow:
+    """Dòng bảng giả: cells là {data-field: chữ trong ô}."""
+
+    def __init__(self, cells, tds=None):
+        self.cells = cells
+        self.tds = tds or []
+
+    def find_elements(self, by, selector):
+        return [FakeElement(t) for t in self.tds]
+
+
+class GridDriver:
+    """Driver giả mô phỏng các hàm JS kvItemRows/kvCell/kvText trên bảng hàng hóa."""
+
+    def __init__(self, rows):
+        self.rows = rows
+
+    def execute_script(self, script, *args):
+        if "kvItemRows()[0]" in script:
+            return self.rows[0] if self.rows else None
+        if "return kvCell(" in script:
+            row, field = args
+            return FakeElement(row.cells[field]) if field in row.cells else None
+        if "return kvText(" in script:
+            row, field = args
+            return row.cells.get(field, "").strip()
+        raise AssertionError("unexpected script")
+
+
 def test_find_matching_row():
-    row = FakeElement("SP001 Sữa 10")
-    assert kv.find_matching_row(FakeDriver([row]), "SP001") is row
-    assert kv.find_matching_row(FakeDriver([row]), "SP999") is False
-    assert kv.find_matching_row(FakeDriver([]), "SP001") is False
+    row = GridRow({kv.FIELD_CODE: "SP001"})
+    assert kv.find_matching_row(GridDriver([row]), "SP001") is row
+    assert kv.find_matching_row(GridDriver([row]), "SP999") is False
+    assert kv.find_matching_row(GridDriver([]), "SP001") is False
 
 
 def test_find_matching_row_does_not_accept_previous_row_with_suffix():
     # Dòng đầu vẫn là mã vừa xử lý trước đó: phải chờ dòng mới, không được nhận nhầm
-    previous = FakeElement("152 7350107133709_D26.10 Sữa Semper",
-                           cells={kv.CODE_CELL_SELECTOR: "7350107133709_D26.10"})
-    assert kv.find_matching_row(FakeDriver([previous]), "7350107133709") is False
-    assert kv.find_matching_row(FakeDriver([previous]), "7350107133709_D26.10") is previous
+    previous = GridRow({kv.FIELD_CODE: "7350107133709_D26.10"})
+    assert kv.find_matching_row(GridDriver([previous]), "7350107133709") is False
+    assert kv.find_matching_row(GridDriver([previous]), "7350107133709_D26.10") is previous
 
-    current = FakeElement("153 7350107133709 Sữa Semper", cells={kv.CODE_CELL_SELECTOR: " 7350107133709 "})
-    assert kv.find_matching_row(FakeDriver([current]), "7350107133709") is current
+    current = GridRow({kv.FIELD_CODE: " 7350107133709 "})
+    assert kv.find_matching_row(GridDriver([current]), "7350107133709") is current
+
+
+def test_row_without_code_column_needs_an_exact_cell():
+    # Không xác định được cột Mã hàng: chỉ nhận khi có ô đúng bằng mã, không so gần đúng trên cả dòng
+    row = GridRow({}, tds=["2", "7350107133709_D26.10", "Sữa"])
+    assert kv.find_matching_row(GridDriver([row]), "7350107133709") is False
+    row = GridRow({}, tds=["2", "7350107133709", "Sữa"])
+    assert kv.find_matching_row(GridDriver([row]), "7350107133709") is row
 
 
 def test_merge_note():
@@ -124,17 +160,7 @@ def test_page_state_from_url():
     assert kv.page_state_from_url(base) == kv.PAGE_OTHER
 
 
-class FakeRow:
-    def __init__(self, order_text=None):
-        self.order_text = order_text
-
-    def find_element(self, by, selector):
-        if self.order_text is None:
-            raise LookupError
-        return FakeElement(self.order_text)
-
-
 def test_read_row_order():
-    assert kv.read_row_order(FakeRow(" 117 ")) == "117"
-    assert kv.read_row_order(FakeRow("")) is None
-    assert kv.read_row_order(FakeRow(None)) is None
+    assert kv.read_row_order(GridDriver([]), GridRow({kv.FIELD_STT: " 117 "})) == "117"
+    assert kv.read_row_order(GridDriver([]), GridRow({kv.FIELD_STT: ""})) is None
+    assert kv.read_row_order(GridDriver([]), GridRow({})) is None

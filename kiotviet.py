@@ -1,4 +1,5 @@
 import re
+import time
 
 from selenium import webdriver
 from selenium.common.exceptions import StaleElementReferenceException, TimeoutException
@@ -10,28 +11,74 @@ from selenium.webdriver.support.ui import WebDriverWait
 
 SEARCH_INPUT_ID = "productSearchInput"
 RESULT_ITEM_SELECTOR = ".output-complete ul li"
-FIRST_ROW_SELECTOR = "table[role='grid'] tbody tr:nth-child(1)"
-CODE_CELL_SELECTOR = "td.cell-code"  # class cũ; fallback sang data-field nếu không tìm thấy
-QUANTITY_CELL_SELECTOR = "td.cell-quantity.txtR"
-QUANTITY_INPUT_SELECTOR = "td.cell-order-number input"
-ORDER_CELL_SELECTOR = "td.cell-order"  # Cột STT; KiotViet đánh số giảm dần, dòng mới thêm có STT lớn nhất
 NOTE_TEXTAREA_ID = "stockTakeDes"
 ADD_STOCKTAKE_SELECTOR = 'a[ng-click="addNew()"]'
 BRANCH_SELECT_ID = "cbSelectBranch"
-ITEM_ROW_SELECTOR = "table[role='grid'] tbody tr td.cell-order-number"
 
-# JS để tìm column index của ProductCode trong Kendo Grid (bền vững với class thay đổi)
-_CODE_COL_INDEX_JS = """
-return (function() {
-    var ths = document.querySelectorAll("table[role='grid'] thead th");
+# Cột của bảng hàng hóa, tìm theo data-field trên tiêu đề bảng. KiotViet hay đổi class của ô
+# (ví dụ ô Mã hàng từ "cell-code" thành "cell-114") nhưng data-field giữ nguyên.
+FIELD_STT = "rowNumber"               # STT; đánh số giảm dần, dòng mới thêm có STT lớn nhất
+FIELD_CODE = "ProductCode"            # Mã hàng
+FIELD_ON_HAND = "SystemCount"         # Tồn kho
+FIELD_ACTUAL = "ActualCount"          # Thực tế (ô nhập số)
+FIELD_ADJUSTMENT = "AdjustmentValue"  # SL lệch
+
+# Thời gian chờ thêm sau khi màn hình phiếu hiện ra, để bắt hộp thoại "Mở bản nháp" hiện chậm
+DRAFT_DIALOG_GRACE_SECONDS = 1.5
+
+# Hàm JS dùng chung để tìm bảng hàng hóa và ô theo data-field (class cũ chỉ là phương án dự phòng)
+_GRID_LIB_JS = """
+var KV_FALLBACK = {rowNumber: ['td.cell-order', 0], ProductCode: ['td.cell-code', 0],
+                   SystemCount: ['td.cell-quantity', 0], ActualCount: ['td.cell-order-number', 0],
+                   AdjustmentValue: ['td.cell-quantity', 1]};
+function kvItemGridEl() {
+    var th = document.querySelector('.k-grid thead th[data-field="ActualCount"]');
+    if (th) return th.closest('.k-grid');
+    var cell = document.querySelector('table[role=grid] tbody td.cell-order-number');
+    return cell ? cell.closest('.k-grid') : null;
+}
+function kvItemGrid() {
+    var el = kvItemGridEl();
+    return el && window.jQuery ? jQuery(el).data('kendoGrid') : null;
+}
+function kvFieldIndex(gridEl, field) {
+    var ths = gridEl.querySelectorAll('thead th');
     for (var i = 0; i < ths.length; i++) {
-        if (ths[i].getAttribute('data-field') === 'ProductCode') return i;
-    }
-    for (var i = 0; i < ths.length; i++) {
-        if (ths[i].className.indexOf('cell-code') !== -1) return i;
+        if (ths[i].getAttribute('data-field') === field) return i;
     }
     return -1;
-})();
+}
+function kvCell(tr, field) {
+    var tds = Array.prototype.filter.call(tr.children, function (c) { return c.tagName === 'TD'; });
+    var gridEl = tr.closest('.k-grid');
+    var i = gridEl ? kvFieldIndex(gridEl, field) : -1;
+    if (i >= 0) return i < tds.length ? tds[i] : null;
+    var fb = KV_FALLBACK[field];
+    return fb ? (tr.querySelectorAll(fb[0])[fb[1]] || null) : null;
+}
+function kvText(tr, field) {
+    var cell = kvCell(tr, field);
+    return cell ? cell.textContent.trim() : '';
+}
+function kvItemRows() {
+    var el = kvItemGridEl();
+    if (!el) return [];
+    return Array.prototype.filter.call(el.querySelectorAll('tbody tr'), function (tr) {
+        var cell = kvCell(tr, 'ActualCount');
+        return !!(cell && cell.querySelector('input'));
+    });
+}
+"""
+
+_DRAFT_DIALOG_JS = """
+var wins = Array.prototype.filter.call(document.querySelectorAll('.k-window'), function (w) {
+    return w.offsetParent !== null && /bản nháp/i.test(w.textContent);
+});
+for (var i = 0; i < wins.length; i++) {
+    var btn = wins[i].querySelector('.kv-btn-cancel');
+    if (btn && btn.offsetParent !== null) return btn;
+}
+return null;
 """
 
 PAGE_LIST = "list"      # Danh sách phiếu kiểm kho: #/StockTakes
@@ -147,60 +194,35 @@ def find_matching_result(driver, code):
     return False
 
 
-def _get_code_cell(driver, row):
-    """Trả về ô Mã hàng của dòng, ưu tiên td.cell-code (class cũ), fallback sang data-field='ProductCode'."""
-    try:
-        return row.find_element(By.CSS_SELECTOR, CODE_CELL_SELECTOR)
-    except Exception:
-        pass
-    # KiotViet đổi class (ví dụ: cell-114) → tìm qua vị trí cột theo header data-field
-    try:
-        col_idx = driver.execute_script(_CODE_COL_INDEX_JS)
-        if col_idx >= 0:
-            tds = row.find_elements(By.CSS_SELECTOR, "td")
-            if col_idx < len(tds):
-                return tds[col_idx]
-    except Exception:
-        pass
-    return None
+def get_cell(driver, row, field):
+    """Ô của cột `field` (data-field) trong một dòng của bảng hàng hóa, hoặc None."""
+    return driver.execute_script(_GRID_LIB_JS + "return kvCell(arguments[0], arguments[1]);", row, field)
 
 
-def row_has_code(row, code, driver=None):
+def cell_text(driver, row, field):
+    return driver.execute_script(_GRID_LIB_JS + "return kvText(arguments[0], arguments[1]);", row, field)
+
+
+def first_item_row(driver):
+    """Dòng đầu tiên của bảng hàng hóa (sản phẩm vừa thêm), hoặc None."""
+    return driver.execute_script(_GRID_LIB_JS + "return kvItemRows()[0] || null;")
+
+
+def row_has_code(driver, row, code):
     """Dòng bảng kiểm kho có đúng mã hàng này không (so chính xác ô Mã hàng)."""
-    cell = _get_code_cell(driver, row) if driver else None
+    cell = get_cell(driver, row, FIELD_CODE)
     if cell is not None:
-        try:
-            return code_equals(cell.get_attribute("textContent"), code)
-        except Exception:
-            pass
-    else:
-        # Fallback 1: tìm trong từng td riêng lẻ (tránh concatenation làm dính số liền kề)
-        try:
-            tds = row.find_elements(By.CSS_SELECTOR, "td")
-            if tds:
-                for td in tds:
-                    try:
-                        td_text = td.get_attribute("textContent")
-                        if code_equals(td_text, code):
-                            return True
-                    except Exception:
-                        continue
-        except Exception:
-            pass
-
-    # Fallback 2: so toàn bộ text của row bằng text_contains_code (hỗ trợ cả mock/fake element trong test)
-    try:
-        row_text = row.get_attribute("textContent")
-        return text_contains_code(row_text, code)
-    except Exception:
-        return False
+        return code_equals(cell.get_attribute("textContent"), code)
+    # Không xác định được cột Mã hàng: chỉ chấp nhận ô có chữ đúng bằng mã, không so gần đúng
+    return any(code_equals(td.get_attribute("textContent"), code)
+               for td in row.find_elements(By.CSS_SELECTOR, "td"))
 
 
 def find_matching_row(driver, code):
     """Trả về dòng đầu tiên của bảng kiểm kho nếu nó đúng là mã đang xử lý."""
     try:
-        row = driver.find_element(By.CSS_SELECTOR, FIRST_ROW_SELECTOR)
-        if row_has_code(row, code, driver=driver):
+        row = first_item_row(driver)
+        if row is not None and row_has_code(driver, row, code):
             return row
     except Exception:
         # Bảng chưa dựng xong hoặc dòng vừa bị render lại: coi như chưa khớp, để chờ tiếp
@@ -208,22 +230,36 @@ def find_matching_row(driver, code):
     return False
 
 
-def read_row_order(row):
+def read_row_order(driver, row):
     """STT của dòng trên phiếu kiểm kho, hoặc None nếu không đọc được."""
     try:
-        text = row.find_element(By.CSS_SELECTOR, ORDER_CELL_SELECTOR).get_attribute("textContent").strip()
+        return cell_text(driver, row, FIELD_STT) or None
     except Exception:
         return None
-    return text or None
 
 
 def read_first_row_input(driver):
     try:
-        row = driver.find_element(By.CSS_SELECTOR, FIRST_ROW_SELECTOR)
-        elm = row.find_element(By.CSS_SELECTOR, QUANTITY_INPUT_SELECTOR)
-        return driver.execute_script("return arguments[0].value;", elm)
+        return driver.execute_script(_GRID_LIB_JS + """
+            var tr = kvItemRows()[0];
+            var input = tr && kvCell(tr, 'ActualCount').querySelector('input');
+            return input ? input.value : null;
+        """)
     except Exception:
         return None
+
+
+def dismiss_draft_dialog(driver):
+    """Bấm "Bỏ qua" ở hộp thoại "Mở bản nháp" nếu đang hiện; KiotViet sẽ xóa bản nháp chưa lưu.
+
+    Trả về True nếu đã bấm.
+    """
+    button = driver.execute_script(_DRAFT_DIALOG_JS)
+    if not button:
+        return False
+    driver.execute_script("arguments[0].click();", button)
+    WebDriverWait(driver, 5, poll_frequency=0.2).until(lambda d: not d.execute_script(_DRAFT_DIALOG_JS))
+    return True
 
 
 def page_state_from_url(url):
@@ -249,29 +285,43 @@ def _search_input_visible(driver):
 def ensure_stocktake_page(driver, timeout=15):
     """Đảm bảo đang ở màn hình nhập phiếu kiểm kho.
 
-    Đang ở danh sách kiểm kho thì bấm nút "Kiểm kho" để tạo phiếu mới.
-    Trả về 'ready' (đã ở sẵn màn hình phiếu) hoặc 'created' (vừa tạo phiếu mới).
+    Đang ở danh sách kiểm kho thì bấm nút "Kiểm kho" để tạo phiếu mới. Nếu KiotViet hỏi
+    "Mở bản nháp" (còn phiếu nháp chưa lưu) thì bấm "Bỏ qua" để bắt đầu phiếu mới.
+    Trả về (trạng thái, đã_bỏ_bản_nháp); trạng thái là 'ready' (đã ở sẵn màn hình phiếu)
+    hoặc 'created' (vừa tạo phiếu mới).
     """
     state = get_page_state(driver)
     if state == PAGE_EDIT:
+        discarded = dismiss_draft_dialog(driver)
         WebDriverWait(driver, timeout).until(_search_input_visible)
-        return "ready"
+        return "ready", discarded
     if state != PAGE_LIST:
         raise RuntimeError("Chrome không ở màn hình Kiểm kho. Hãy mở Hàng hóa > Kiểm kho trên KiotViet.")
 
     button = WebDriverWait(driver, timeout).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, ADD_STOCKTAKE_SELECTOR)))
     driver.execute_script("arguments[0].click();", button)
-    try:
-        WebDriverWait(driver, timeout).until(
-            lambda d: get_page_state(d) == PAGE_EDIT and _search_input_visible(d))
-    except TimeoutException:
-        raise RuntimeError("Đã bấm nút 'Kiểm kho' nhưng màn hình tạo phiếu không hiện ra.")
-    return "created"
+
+    discarded = False
+    ready_since = None
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if dismiss_draft_dialog(driver):
+            discarded = True
+            ready_since = None
+            continue
+        if get_page_state(driver) == PAGE_EDIT and _search_input_visible(driver):
+            ready_since = ready_since or time.monotonic()
+            if time.monotonic() - ready_since >= DRAFT_DIALOG_GRACE_SECONDS:
+                return "created", discarded
+        else:
+            ready_since = None
+        time.sleep(0.2)
+    raise RuntimeError("Đã bấm nút 'Kiểm kho' nhưng màn hình tạo phiếu không hiện ra.")
 
 
 def count_item_rows(driver):
-    return len(driver.find_elements(By.CSS_SELECTOR, ITEM_ROW_SELECTOR))
+    return driver.execute_script(_GRID_LIB_JS + "return kvItemRows().length;")
 
 
 _BRANCH_JS = "var dd = window.jQuery && jQuery('#' + arguments[0]).data('kendoDropDownList');"
@@ -324,10 +374,7 @@ def change_branch(driver, branch_id, timeout=45):
     return current
 
 
-_ITEM_GRID_JS = """
-var cell = document.querySelector("table[role=grid] tbody td.cell-order-number");
-var grid = cell && window.jQuery && jQuery(cell).closest('.k-grid').data('kendoGrid');
-"""
+_ITEM_GRID_JS = _GRID_LIB_JS + "var grid = kvItemGrid();\n"
 
 
 def _grid_state(driver):
@@ -337,28 +384,12 @@ def _grid_state(driver):
 
 
 def _read_visible_rows(driver):
-    code_col_idx = driver.execute_script(_CODE_COL_INDEX_JS)
-    return driver.execute_script(_ITEM_GRID_JS + """
-        if (!grid) return [];
-        var codeColIdx = arguments[0];
-        return grid.tbody.find('tr').toArray()
-            .filter(function (tr) { return tr.querySelector('td.cell-order-number'); })
-            .map(function (tr) {
-                var text = function (sel) { var e = tr.querySelector(sel); return e ? e.textContent.trim() : ''; };
-                var quantities = tr.querySelectorAll('td.cell-quantity');
-                // Lấy mã hàng từ cột ProductCode (theo index động) hoặc fallback td.cell-code (class cũ)
-                var codeText = '';
-                if (codeColIdx != null && codeColIdx >= 0) {
-                    var tds = tr.querySelectorAll('td');
-                    if (codeColIdx < tds.length && tds[codeColIdx]) {
-                        codeText = tds[codeColIdx].textContent.trim();
-                    }
-                }
-                if (!codeText) codeText = text('td.cell-code');
-                return {stt: text('td.cell-order'), code: codeText,
-                        adjustment: quantities.length > 1 ? quantities[1].textContent.trim() : ''};
-            });
-    """, code_col_idx)
+    return driver.execute_script(_GRID_LIB_JS + """
+        return kvItemRows().map(function (tr) {
+            return {stt: kvText(tr, 'rowNumber'), code: kvText(tr, 'ProductCode'),
+                    adjustment: kvText(tr, 'AdjustmentValue')};
+        });
+    """)
 
 
 def read_stocktake_rows(driver, timeout=10):
@@ -474,9 +505,8 @@ def process_item(driver, code, qty_excel, result_timeout):
         raise SkipItem("Không thấy sản phẩm xuất hiện ở dòng đầu bảng kiểm kho.")
 
     # Bước 4: đọc STT trên phiếu (để báo lỗi dễ tìm lại) và số lượng hiện có trên web
-    web_stt = read_row_order(row)
-    qty_cell = row.find_element(By.CSS_SELECTOR, QUANTITY_CELL_SELECTOR)
-    qty_web = parse_web_number(qty_cell.text)
+    web_stt = read_row_order(driver, row)
+    qty_web = parse_web_number(cell_text(driver, row, FIELD_ON_HAND))
 
     # Bước 5: kiểm tra điều kiện
     total_value = qty_web + qty_excel
@@ -484,7 +514,7 @@ def process_item(driver, code, qty_excel, result_timeout):
         raise SkipItem(f"số lượng cân chỉnh không hợp lệ (Tổng: {format_qty(total_value)})", web_stt)
 
     # Bước 6: điền số lượng bằng API AngularJS
-    input_td = row.find_element(By.CSS_SELECTOR, QUANTITY_INPUT_SELECTOR)
+    input_td = get_cell(driver, row, FIELD_ACTUAL).find_element(By.CSS_SELECTOR, "input")
     driver.execute_script("""
         var elm = arguments[0];
         var val = arguments[1];

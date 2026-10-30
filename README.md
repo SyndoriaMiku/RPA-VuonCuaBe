@@ -34,6 +34,7 @@ Giao diện chia thành 3 bước:
    - **▶ CHẠY TỰ ĐỘNG**: nếu file có mã trùng hoặc số lượng không hợp lệ, Tool hỏi xác nhận trước khi chạy. Thanh tiến độ hiển thị `đã xử lý/tổng`.
      - Nếu cơ sở trong tiêu đề file không khớp cơ sở đang làm việc trên web, Tool hỏi có tiếp tục không (vì tên trong file đôi khi khác tên trên web).
      - Nếu web đang ở trang danh sách kiểm kho, Tool tự bấm nút **Kiểm kho** để tạo phiếu mới; nếu đã ở màn hình phiếu thì làm luôn.
+     - Nếu KiotViet hỏi **"Mở bản nháp"** (còn phiếu nháp chưa lưu), Tool tự chọn **Bỏ qua** để nhập file vào phiếu mới và ghi cảnh báo vào nhật ký. Lưu ý: Bỏ qua sẽ **xóa bản nháp cũ**, nên hãy lưu phiếu đang làm dở trước khi chạy Tool.
    - **■ DỪNG**: Tool dừng sau khi xong mã hàng hiện tại.
    - **Chờ kết quả tối đa**: Tool chỉ chờ đến khi thấy sản phẩm, không chờ đủ số giây cố định.
 
@@ -109,4 +110,4 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 
 ## Lưu ý kỹ thuật
 
-Tool phụ thuộc vào cấu trúc giao diện HTML hiện tại của KiotViet. Các selector nằm ở đầu file `kiotviet.py`; nếu KiotViet thay đổi ID, CSS selector hoặc cơ chế nhập liệu, chỉ cần cập nhật file này.
+Tool phụ thuộc vào cấu trúc giao diện HTML hiện tại của KiotViet. Các cột của bảng hàng hóa (STT, Mã hàng, Tồn kho, Thực tế, SL lệch) được tìm theo thuộc tính `data-field` trên tiêu đề bảng (`rowNumber`, `ProductCode`, `SystemCount`, `ActualCount`, `AdjustmentValue`) nên không bị ảnh hưởng khi KiotViet đổi class của ô (ví dụ ô Mã hàng từ `cell-code` thành `cell-114`); class cũ chỉ dùng dự phòng. Các selector và hàm JS nằm ở đầu file `kiotviet.py`. `tests/test_grid_js.py` chạy các hàm JS đó trên trang HTML mô phỏng bằng Chrome headless.

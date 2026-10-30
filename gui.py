@@ -481,12 +481,15 @@ class App:
                 return
 
             try:
-                page = kiotviet.ensure_stocktake_page(driver)
+                page, discarded_draft = kiotviet.ensure_stocktake_page(driver)
             except Exception as exc:
                 self.notify("showerror", "Chưa ở màn hình Kiểm kho", str(exc).split("\n")[0])
                 return
             if page == "created":
                 self.log("Đang ở danh sách kiểm kho: đã bấm 'Kiểm kho' để tạo phiếu mới.", "ok")
+            if discarded_draft:
+                self.log("KiotViet hỏi mở bản nháp chưa lưu: đã chọn 'Bỏ qua' (bản nháp cũ bị xóa) "
+                         "để nhập file này vào phiếu mới.", "warn")
 
             self.log(f"Đọc Excel từ {start_cell}; số lượng tại cột {quantity_column}.")
             self.log(f"Bắt đầu chạy {len(items)} mã hàng...")
