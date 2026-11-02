@@ -643,10 +643,9 @@ class App:
                     self.notify("showerror", "Chưa ở màn hình Kiểm kho", str(exc).split("\n")[0])
                     return
                 if page == "created":
-                    self.log("Đang ở danh sách kiểm kho: đã bấm 'Kiểm kho' để tạo phiếu mới.", "ok")
+                    self.log("Đang ở danh sách kiểm kho, tạo phiếu mới.", "ok")
                 if discarded_draft:
-                    self.log("KiotViet hỏi mở bản nháp chưa lưu: đã chọn 'Bỏ qua' (bản nháp cũ bị xóa) "
-                             "để nhập file này vào phiếu mới.", "warn")
+                    self.log("Đã chọn 'Bỏ qua' bản nháp cũ, bắt đầu phiếu mới.", "warn")
 
                 self.log(f"Đọc Excel từ {start_cell}; số lượng tại cột {quantity_column}.")
                 self.log(f"Bắt đầu chạy {len(items)} mã hàng...")
@@ -706,21 +705,18 @@ class App:
                     title, branches, self.config.get("branch_overrides", {}))
                 if branch is None:
                     if reason == "ambiguous":
-                        self.log("Tiêu đề file khớp nhiều cơ sở, hãy chọn tay trong danh sách Cơ sở theo file.", "warn")
+                        self.log("Tiêu đề file khớp nhiều cơ sở, hãy chọn tay.", "warn")
                     else:
-                        self.log("Không xác định được cơ sở từ tiêu đề file, hãy chọn tay trong danh sách Cơ sở theo file.", "warn")
+                        self.log("Không xác định được cơ sở từ file, hãy chọn tay.", "warn")
                     return
 
                 self._show_branch_choice(branch)
                 if current and str(branch[0]) == str(current[0]):
-                    self.log(f"Cơ sở đang làm việc đã đúng: {current[1]}.", "ok")
+                    self.log(f"Cơ sở đã đúng: {current[1]}.", "ok")
                     return
 
                 if kiotviet.get_page_state(driver) == kiotviet.PAGE_EDIT and kiotviet.count_item_rows(driver):
-                    working = current[1] if current else "không rõ"
-                    self.log(
-                        f"Phiếu kiểm kho đang mở đã có hàng, không tự đổi cơ sở để tránh mất dữ liệu. "
-                        f"Cơ sở theo file: {branch[1]}; đang làm việc: {working}.", "warn")
+                    self.log("Phiếu đã có hàng, không đổi cơ sở (tránh mất dữ liệu).", "warn")
                     return
 
                 working = current[1] if current else "không rõ"
@@ -748,27 +744,27 @@ class App:
         try:
             with self.session.exclusive() as driver:
                 if driver is None:
-                    self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa đổi cơ sở.", "warn")
+                    self.log("Chưa kết nối được Chrome/KiotViet, không đổi được cơ sở.", "warn")
                     return
                 try:
                     current = kiotviet.get_current_branch(driver)
                 except Exception:
                     self.session.invalidate()
-                    self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa đổi cơ sở.", "warn")
+                    self.log("Chưa kết nối được Chrome/KiotViet, không đổi được cơ sở.", "warn")
                     return
 
                 if current and str(branch[0]) == str(current[0]):
-                    self.log(f"Cơ sở đang làm việc đã đúng: {current[1]}.", "ok")
+                    self.log(f"Cơ sở đã đúng: {current[1]}.", "ok")
                     return
 
                 if kiotviet.get_page_state(driver) == kiotviet.PAGE_EDIT and kiotviet.count_item_rows(driver):
-                    self.log("Phiếu kiểm kho đang mở đã có hàng, không đổi cơ sở để tránh mất dữ liệu.", "warn")
+                    self.log("Phiếu đã có hàng, không đổi cơ sở (tránh mất dữ liệu).", "warn")
                     return
 
                 working = current[1] if current else "không rõ"
                 self.log(f"Đang đổi cơ sở: {working} → {branch[1]}...")
                 kiotviet.change_branch(driver, branch[0])
-                self.log(f"Đã đổi cơ sở làm việc sang {branch[1]}.", "ok")
+                self.log(f"Đã đổi cơ sở sang {branch[1]}.", "ok")
         except Exception as exc:
             first_line = str(exc).split("\n")[0]
             self.log(f"Không đổi được cơ sở: {first_line or type(exc).__name__}", "error")
@@ -836,14 +832,14 @@ class App:
         """So cơ sở đang chọn trong danh sách với cơ sở làm việc trên web."""
         selected = self._selected_branch()
         if not selected and not title:
-            self.log("Chưa chọn được cơ sở và ô C2 trống, không kiểm tra được cơ sở.", "warn")
+            self.log("Chưa có cơ sở để kiểm tra.", "warn")
             return True
         try:
             current = kiotviet.get_current_branch(driver)
         except Exception:
             current = None
         if not current:
-            self.log("Không đọc được cơ sở đang làm việc trên web, bỏ qua bước kiểm tra cơ sở.", "warn")
+            self.log("Không đọc được cơ sở trên web, bỏ qua kiểm tra.", "warn")
             return True
 
         if selected:
@@ -857,7 +853,7 @@ class App:
                 return True
             file_label = title
 
-        self.log(f"Cơ sở có thể không khớp. File: {file_label} | Web: {current[1]}", "warn")
+        self.log(f"Cơ sở có thể không khớp: File {file_label} | Web {current[1]}", "warn")
         return self.ask_yes_no(
             "Cơ sở không khớp",
             f"Cơ sở theo file: {file_label}\nCơ sở đang làm việc trên web: {current[1]}\n\n"

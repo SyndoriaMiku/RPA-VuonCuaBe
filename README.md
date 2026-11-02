@@ -41,7 +41,7 @@ Giao diện chia thành 3 bước:
 
 Nhật ký có màu: xanh là thành công, cam là bỏ qua/cảnh báo, đỏ là lỗi hoặc cần kiểm tra. Có nút **Sao chép tất cả** và **Xóa**. Cuối mỗi lần chạy có thống kê thành công / bỏ qua / lỗi.
 
-Mã hàng trong các dòng `BỎ QUA`, `CẦN KIỂM TRA`, `LỖI Web` và `SAI LỆCH` được gạch chân màu xanh. **Bấm vào mã** để Tool mở Chrome, chuyển phiếu kiểm kho tới đúng trang chứa mã đó, cuộn tới và tô sáng dòng trong vài giây. Không tìm thấy thì bảng được trả về trang ban đầu và nhật ký báo `Không thấy mã ... trên phiếu đang mở`. Tool không nhảy trang khi đang chạy; hãy chờ chạy xong rồi bấm lại.
+Mã hàng trong các dòng `BỎ QUA`, `CẦN KIỂM TRA`, `LỖI Web`, `Lệch` và `Thiếu` được gạch chân màu xanh. **Bấm vào mã** để Tool mở Chrome, chuyển phiếu kiểm kho tới đúng trang chứa mã đó, cuộn tới và tô sáng dòng trong vài giây. Không tìm thấy thì bảng được trả về trang ban đầu và nhật ký báo `Không thấy mã ... trên phiếu đang mở`. Tool không nhảy trang khi đang chạy; hãy chờ chạy xong rồi bấm lại.
 
 Khi lần chạy kết thúc (hoàn tất, dừng hoặc lỗi kết nối), Tool phát âm thanh hệ thống của Windows và nhấp nháy biểu tượng trên taskbar cho đến khi bạn mở lại cửa sổ: âm "OK" khi mọi mã đều thành công, âm cảnh báo khi có mã bỏ qua/sai lệch/lỗi. Có thể tắt hai thông báo này trong **Cài đặt**.
 

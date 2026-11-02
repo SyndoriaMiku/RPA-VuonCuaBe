@@ -52,16 +52,16 @@ def describe_report(report, format_qty=lambda v: f"{v:g}"):
     """Các dòng (mức độ, nội dung, mã hàng hoặc None) để ghi nhật ký."""
     lines = []
     for code, stts, web, excel in report.mismatched:
-        lines.append(("error", f"SAI LỆCH: Mã {code} (STT {', '.join(stts)} trên KiotViet) - "
-                               f"SL lệch trên web {format_qty(web)}, Excel {format_qty(excel)}", code))
+        lines.append(("error", f"Lệch {code}: web {format_qty(web)}, Excel {format_qty(excel)} "
+                               f"(STT {', '.join(stts)})", code))
     for code, rows, excel in report.missing:
-        lines.append(("error", f"SAI LỆCH: Mã {code} (dòng {', '.join(map(str, rows))} Excel) đã điền "
-                               f"nhưng không thấy trên phiếu - Excel {format_qty(excel)}", code))
+        lines.append(("error", f"Thiếu {code} trên phiếu, Excel {format_qty(excel)} "
+                               f"(dòng {', '.join(map(str, rows))})", code))
 
     total = report.matched + len(report.mismatched) + len(report.missing)
     if report.ok:
-        lines.append(("ok", f"Tất cả {total} mã đã điền đều khớp SL lệch với Excel.", None))
+        lines.append(("ok", f"Tất cả {total} mã khớp SL lệch với Excel.", None))
     else:
-        lines.append(("error", f"Khớp {report.matched}/{total} mã đã điền | "
-                               f"Sai lệch: {len(report.mismatched) + len(report.missing)}", None))
+        lines.append(("error", f"Khớp {report.matched}/{total}, sai lệch: "
+                               f"{len(report.mismatched) + len(report.missing)}", None))
     return lines
