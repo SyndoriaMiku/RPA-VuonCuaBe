@@ -91,7 +91,15 @@ Selenium (từ 4.6) tự tải chromedriver phù hợp với phiên bản Chrome
 .uild.ps1
 ```
 
-Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoApp.spec`. Nếu test lỗi thì không build.
+Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoApp.spec`. Nếu test lỗi thì không build. Trước khi đóng gói, script ghi mã commit ngắn và ngày build vào `version.py` (thêm `-dirty` nếu còn thay đổi chưa commit), rồi trả lại `BUILD = "dev"` sau khi build xong.
+
+## Phiên bản
+
+Số phiên bản nằm trong `version.py`:
+
+- Tiêu đề cửa sổ hiển thị `Auto Robot v1.4.0` khi chạy từ mã nguồn, và `Auto Robot v1.4.0 (<mã commit> <ngày build>)` với bản `.exe`.
+- Góc dưới bên phải cửa sổ và dòng đầu nhật ký luôn hiển thị phiên bản đang chạy, thuận tiện khi báo lỗi.
+- Quy ước tăng số: sửa lỗi tăng số cuối (`1.4.0` → `1.4.1`), thêm tính năng tăng số giữa (`1.4.1` → `1.5.0`).
 
 ## Cấu trúc dự án
 
@@ -103,6 +111,7 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 - `branch_match.py`: khớp tiêu đề file với cơ sở trên web (theo số CS hoặc địa điểm, không phân biệt dấu).
 - `excel_reader.py`: đọc Excel, phân tích ô bắt đầu, kiểm tra mã trùng/số lượng.
 - `config.py`: đọc/ghi `config.json`, dò đường dẫn Chrome.
+- `version.py`: số phiên bản và mã build hiển thị trên cửa sổ/nhật ký.
 - `tests/`: test `pytest` cho các module trên (không cần Chrome hay KiotViet).
 - `AutoApp.spec`: cấu hình đóng gói bằng PyInstaller, bao gồm các DLL Tcl/Tk cần thiết từ môi trường Conda.
 - `build.ps1`: script test và build.

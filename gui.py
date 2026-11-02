@@ -11,6 +11,7 @@ import config as app_config
 import excel_reader
 import kiotviet
 import verify
+import version
 
 FONT = "Segoe UI"
 COLORS = {
@@ -39,7 +40,7 @@ class App:
         self.running = False
 
         self.root = tk.Tk()
-        self.root.title("Auto Robot")
+        self.root.title(version.window_title())
         self.root.geometry("920x740")
         self.root.minsize(780, 620)
         self.root.configure(bg=COLORS["bg"])
@@ -48,6 +49,7 @@ class App:
         self._center_window()
         self._refresh_chrome_status()
         self._refresh_cell_hint()
+        self.log(f"Phiên bản {version.build_text()}")
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # File đã dùng lần trước: load lại để hiện tiêu đề và tự đổi cơ sở như khi vừa chọn file
@@ -75,6 +77,7 @@ class App:
             darkcolor=COLORS["border"], padding=5,
         )
         style.configure("TCombobox", padding=4)
+        style.configure("Footer.TLabel", background=COLORS["bg"], foreground=COLORS["muted"], font=(FONT, 8))
 
         style.configure("TButton", padding=(12, 7), borderwidth=1, bordercolor=COLORS["border"],
                         background="#FFFFFF", focuscolor=COLORS["card"])
@@ -191,6 +194,8 @@ class App:
         self.txt_log.bind("<Control-c>", self._copy_selected_log)
         self.txt_log.bind("<Control-a>", self._select_all_log)
         self.txt_log.bind("<Button-1>", lambda event: self.txt_log.focus_set())
+
+        ttk.Label(main, text=version.build_text(), style="Footer.TLabel").pack(anchor="e", pady=(6, 0))
 
     def _center_window(self):
         self.root.update_idletasks()
@@ -360,14 +365,14 @@ class App:
                 sheet = excel_reader.open_sheet(file_path, "")
             except Exception:
                 self.lbl_title.config(text="[Lỗi đọc file Excel]")
-                self.root.title("Auto Robot")
+                self.root.title(version.window_title())
                 messagebox.showerror("Lỗi đọc Excel", "Không thể đọc thông tin từ file Excel đã chọn.")
                 return
 
         c2_value = sheet["C2"].value
         title = str(c2_value) if c2_value else "[Ô C2 trống]"
         self.lbl_title.config(text=title)
-        self.root.title(f"Auto Robot - {c2_value}" if c2_value else "Auto Robot")
+        self.root.title(version.window_title(str(c2_value).strip() if c2_value else ""))
 
         try:
             _, scan_column, _, scan_start_row = excel_reader.parse_start_cell(self.var_start.get())
