@@ -125,7 +125,7 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 
 Số phiên bản nằm trong `version.py`:
 
-- Tiêu đề cửa sổ hiển thị `Auto Robot v1.4.0` khi chạy từ mã nguồn, và `Auto Robot v1.4.0 (<mã commit> <ngày build>)` với bản `.exe`.
+- Tiêu đề cửa sổ hiển thị `Auto Robot v1.4.1` khi chạy từ mã nguồn, và `Auto Robot v1.4.1 (<mã commit> <ngày build>)` với bản `.exe`.
 - Góc dưới bên phải cửa sổ và dòng đầu nhật ký luôn hiển thị phiên bản đang chạy, thuận tiện khi báo lỗi.
 - Quy ước tăng số: sửa lỗi tăng số cuối (`1.4.0` → `1.4.1`), thêm tính năng tăng số giữa (`1.4.1` → `1.5.0`).
 

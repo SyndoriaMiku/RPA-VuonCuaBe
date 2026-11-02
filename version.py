@@ -1,6 +1,6 @@
 """Phiên bản Tool. `BUILD` được build.ps1 ghi đè tạm thời khi đóng gói."""
 
-__version__ = "1.4.0"
+__version__ = "1.4.1"
 BUILD = "dev"
 
 
