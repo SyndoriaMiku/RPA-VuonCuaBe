@@ -27,6 +27,7 @@ COLORS = {
     "primary_hover": "#1B5E20",
     "danger": "#C62828",
     "danger_hover": "#8E0000",
+    "warn": "#B45309",
     "border": "#D9DEE3",
 }
 LOG_COLORS = {
@@ -43,6 +44,8 @@ class App:
         self.stop_event = threading.Event()
         self.running = False
         self._last_status = None
+        self._branches = []
+        self._current_title = ""
         self.session = session.DriverSession(
             lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False))
 
@@ -187,6 +190,18 @@ class App:
         self.lbl_cell_hint = ttk.Label(card2, text="", style="Muted.TLabel")
         self.lbl_cell_hint.grid(row=3, column=2, columnspan=2, sticky="w")
 
+        ttk.Label(card2, text="Cơ sở theo file", style="Card.TLabel").grid(row=4, column=0, sticky="w", pady=4)
+        self.var_branch = tk.StringVar()
+        self.combo_branch = ttk.Combobox(card2, textvariable=self.var_branch, state="readonly")
+        self.combo_branch.grid(row=4, column=1, sticky="ew", padx=8)
+        self.combo_branch.bind("<<ComboboxSelected>>", self._on_branch_selected)
+        self.btn_change_branch = ttk.Button(card2, text="Đổi trên web", command=self.change_branch_clicked)
+        self.btn_change_branch.grid(row=4, column=2, sticky="w")
+        self.lbl_branch = tk.Label(
+            card2, text="Chọn file Excel để nhận cơ sở.", bg=COLORS["card"], fg=COLORS["muted"],
+            font=(FONT, 9), anchor="w")
+        self.lbl_branch.grid(row=4, column=3, sticky="w", padx=(10, 0))
+
         # Bước 3: Chạy
         card3 = self._card(main, "Kiểm tra và chạy", "③")
         ttk.Label(card3, text="Chờ kết quả tối đa (giây)", style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=4)
@@ -272,6 +287,8 @@ class App:
             self.btn_status_chrome.pack_forget()
         if status is not None:
             self._last_status = status
+            self._update_branches(status.get("branches") or [])
+        self._update_branch_hint()
 
     def open_settings(self):
         if self.running:
@@ -333,6 +350,7 @@ class App:
         self.btn_run.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_check.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_settings.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_change_branch.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL if running and can_stop else tk.DISABLED)
         if running:
             self._apply_status(None, running=True)
@@ -460,6 +478,9 @@ class App:
         title = str(c2_value) if c2_value else "[Ô C2 trống]"
         self.lbl_title.config(text=title)
         self.root.title(version.window_title(str(c2_value).strip() if c2_value else ""))
+        self._current_title = str(c2_value).strip() if c2_value else ""
+        self._update_branches(self._branches)
+        self._update_branch_hint()
 
         try:
             _, scan_column, _, scan_start_row = excel_reader.parse_start_cell(self.var_start.get())
@@ -634,43 +655,145 @@ class App:
                     self.session.invalidate()
                     self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa tự đổi cơ sở.", "warn")
                     return
-                if not current or not branches:
+                if not branches:
                     self.log("Không đọc được danh sách cơ sở trên web nên chưa tự đổi cơ sở.", "warn")
                     return
 
-                matches = branch_match.match_branches(title, branches)
-                if not matches:
-                    self.log(f"Không xác định được cơ sở từ tiêu đề file. Giữ cơ sở hiện tại: {current[1]}.", "warn")
-                    return
-                if len(matches) > 1:
-                    names = ", ".join(name for _, name in matches)
-                    self.log(f"Tiêu đề file khớp nhiều cơ sở ({names}). Giữ cơ sở hiện tại: {current[1]}.", "warn")
+                branch, reason = branch_match.resolve_branch(
+                    title, branches, self.config.get("branch_overrides", {}))
+                if branch is None:
+                    if reason == "ambiguous":
+                        self.log("Tiêu đề file khớp nhiều cơ sở, hãy chọn tay trong danh sách Cơ sở theo file.", "warn")
+                    else:
+                        self.log("Không xác định được cơ sở từ tiêu đề file, hãy chọn tay trong danh sách Cơ sở theo file.", "warn")
                     return
 
-                target_id, target_name = matches[0]
-                if target_id == current[0]:
+                self._show_branch_choice(branch)
+                if current and str(branch[0]) == str(current[0]):
                     self.log(f"Cơ sở đang làm việc đã đúng: {current[1]}.", "ok")
                     return
 
                 if kiotviet.get_page_state(driver) == kiotviet.PAGE_EDIT and kiotviet.count_item_rows(driver):
+                    working = current[1] if current else "không rõ"
                     self.log(
                         f"Phiếu kiểm kho đang mở đã có hàng, không tự đổi cơ sở để tránh mất dữ liệu. "
-                        f"Cơ sở theo file: {target_name}; đang làm việc: {current[1]}.", "warn")
+                        f"Cơ sở theo file: {branch[1]}; đang làm việc: {working}.", "warn")
                     return
 
-                self.log(f"Đang đổi cơ sở: {current[1]} → {target_name}...")
-                kiotviet.change_branch(driver, target_id)
-                self.log(f"Đã đổi cơ sở làm việc sang {target_name}.", "ok")
+                working = current[1] if current else "không rõ"
+                self.log(f"Đang đổi cơ sở: {working} → {branch[1]}...")
+                kiotviet.change_branch(driver, branch[0])
+                self.log(f"Đã đổi cơ sở làm việc sang {branch[1]}.", "ok")
         except Exception as exc:
             first_line = str(exc).split("\n")[0]
             self.log(f"Không đổi được cơ sở: {first_line or type(exc).__name__}", "error")
         finally:
             self.root.after(0, lambda: self._set_running(False))
 
+    def change_branch_clicked(self):
+        """Đổi cơ sở trên web sang lựa chọn trong danh sách Cơ sở theo file."""
+        if self.running:
+            return
+        branch = self._selected_branch()
+        if branch is None:
+            messagebox.showwarning("Cơ sở", "Hãy chọn cơ sở trong danh sách trước.")
+            return
+        self._set_running(True, can_stop=False)
+        threading.Thread(target=self._change_branch_worker, args=(branch,), daemon=True).start()
+
+    def _change_branch_worker(self, branch):
+        try:
+            with self.session.exclusive() as driver:
+                if driver is None:
+                    self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa đổi cơ sở.", "warn")
+                    return
+                try:
+                    current = kiotviet.get_current_branch(driver)
+                except Exception:
+                    self.session.invalidate()
+                    self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa đổi cơ sở.", "warn")
+                    return
+
+                if current and str(branch[0]) == str(current[0]):
+                    self.log(f"Cơ sở đang làm việc đã đúng: {current[1]}.", "ok")
+                    return
+
+                if kiotviet.get_page_state(driver) == kiotviet.PAGE_EDIT and kiotviet.count_item_rows(driver):
+                    self.log("Phiếu kiểm kho đang mở đã có hàng, không đổi cơ sở để tránh mất dữ liệu.", "warn")
+                    return
+
+                working = current[1] if current else "không rõ"
+                self.log(f"Đang đổi cơ sở: {working} → {branch[1]}...")
+                kiotviet.change_branch(driver, branch[0])
+                self.log(f"Đã đổi cơ sở làm việc sang {branch[1]}.", "ok")
+        except Exception as exc:
+            first_line = str(exc).split("\n")[0]
+            self.log(f"Không đổi được cơ sở: {first_line or type(exc).__name__}", "error")
+        finally:
+            self.root.after(0, lambda: self._set_running(False))
+
+    def _update_branches(self, branches):
+        branches = [tuple(b) for b in branches]
+        if not branches:
+            return
+        if branches != self._branches:
+            self._branches = branches
+            self.combo_branch.config(values=[name for _, name in branches])
+
+        # Chọn sẵn cơ sở theo file (ưu tiên lựa chọn tay đã lưu) khi danh sách vừa có
+        if self._current_title and self._selected_branch() is None:
+            branch, _ = branch_match.resolve_branch(
+                self._current_title, branches, self.config.get("branch_overrides", {}))
+            if branch:
+                self.var_branch.set(branch[1])
+
+    def _selected_branch(self):
+        name = self.var_branch.get().strip()
+        if not name:
+            return None
+        return next((branch for branch in self._branches if branch[1] == name), None)
+
+    def _on_branch_selected(self, event=None):
+        branch = self._selected_branch()
+        if branch and self._current_title:
+            overrides = self.config.setdefault("branch_overrides", {})
+            overrides[branch_match.normalize(self._current_title)] = branch[0]
+            self._save_config()
+            self.log(f"Đã ghi nhớ cơ sở cho file này: {branch[1]}.", "ok")
+        self._update_branch_hint()
+
+    def _show_branch_choice(self, branch):
+        def apply():
+            if branch[1] in self.combo_branch["values"]:
+                self.var_branch.set(branch[1])
+            self._update_branch_hint()
+        self.root.after(0, apply)
+
+    def _update_branch_hint(self):
+        selected = self._selected_branch()
+        if not self._current_title:
+            self.lbl_branch.config(text="Chọn file Excel để nhận cơ sở.", fg=COLORS["muted"])
+            return
+        if selected is None:
+            if self._branches:
+                self.lbl_branch.config(text="⚠ Không nhận ra cơ sở từ C2, hãy chọn", fg=COLORS["warn"])
+            else:
+                self.lbl_branch.config(text="Chưa đọc được danh sách cơ sở trên web", fg=COLORS["muted"])
+            return
+
+        web = (self._last_status or {}).get("branch")
+        if not web:
+            self.lbl_branch.config(text="Chưa kết nối web", fg=COLORS["muted"])
+        elif str(web[0]) == str(selected[0]):
+            self.lbl_branch.config(text="✓ Khớp với web", fg=COLORS["primary"])
+        else:
+            self.lbl_branch.config(text=f"⚠ Web đang ở {web[1]}", fg=COLORS["warn"])
+
     def _confirm_branch(self, driver, title):
-        """So cơ sở trong file với cơ sở đang làm việc; không khớp thì hỏi có tiếp tục không."""
-        if not title:
-            self.log("Ô C2 trống, không kiểm tra được cơ sở.", "warn")
+        """So cơ sở đang chọn trong danh sách với cơ sở làm việc trên web."""
+        selected = self._selected_branch()
+        if not selected and not title:
+            self.log("Chưa chọn được cơ sở và ô C2 trống, không kiểm tra được cơ sở.", "warn")
             return True
         try:
             current = kiotviet.get_current_branch(driver)
@@ -680,14 +803,21 @@ class App:
             self.log("Không đọc được cơ sở đang làm việc trên web, bỏ qua bước kiểm tra cơ sở.", "warn")
             return True
 
-        if branch_match.is_same_branch(title, current[1]):
-            self.log(f"Cơ sở khớp: {current[1]}.", "ok")
-            return True
+        if selected:
+            if str(selected[0]) == str(current[0]):
+                self.log(f"Cơ sở khớp: {current[1]}.", "ok")
+                return True
+            file_label = selected[1]
+        else:
+            if branch_match.is_same_branch(title, current[1]):
+                self.log(f"Cơ sở khớp: {current[1]}.", "ok")
+                return True
+            file_label = title
 
-        self.log(f"Cơ sở có thể không khớp. File: {title} | Web: {current[1]}", "warn")
+        self.log(f"Cơ sở có thể không khớp. File: {file_label} | Web: {current[1]}", "warn")
         return self.ask_yes_no(
             "Cơ sở không khớp",
-            f"Tiêu đề file: {title}\nCơ sở đang làm việc trên web: {current[1]}\n\n"
+            f"Cơ sở theo file: {file_label}\nCơ sở đang làm việc trên web: {current[1]}\n\n"
             "Hai cơ sở có vẻ không khớp. Vẫn tiếp tục chạy?",
         )
 

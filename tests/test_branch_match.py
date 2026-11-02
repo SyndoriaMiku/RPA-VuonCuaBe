@@ -82,3 +82,38 @@ def test_is_same_branch():
     assert not bm.is_same_branch("Cân chỉnh CS01", "CS08 - 22 Vũ Trọng Phụng")
     assert not bm.is_same_branch("CS01 Vũ Trọng Phụng", "CS08 - 22 Vũ Trọng Phụng")
     assert not bm.is_same_branch("Cân chỉnh hàng hóa", "CS08 - 22 Vũ Trọng Phụng")
+
+
+def test_resolve_branch_uses_unique_match():
+    assert bm.resolve_branch("Cân chỉnh CS08", BRANCHES) == (
+        ("152162", "CS08 - 22 Vũ Trọng Phụng"), "matched")
+
+
+def test_resolve_branch_reports_ambiguous_and_unknown():
+    assert bm.resolve_branch("Cân chỉnh hàng hóa", BRANCHES) == (None, "unknown")
+    assert bm.resolve_branch("Kiểm kho", BRANCHES) == (None, "unknown")
+
+    duplicated = [("1", "CS08 - 22 Vũ Trọng Phụng"), ("2", "CS08 - 22 Vũ Trọng Phụng")]
+    assert bm.resolve_branch("Cân chỉnh CS08", duplicated) == (None, "ambiguous")
+
+
+def test_resolve_branch_prefers_saved_override():
+    overrides = {bm.normalize("Cân chỉnh CS08"): "151550"}
+    assert bm.resolve_branch("Cân chỉnh CS08", BRANCHES, overrides) == (
+        ("151550", "CS02 - 68 Linh Lang"), "override")
+
+
+def test_resolve_branch_override_matches_normalized_title():
+    overrides = {"can chinh cs08": "153113"}
+    assert bm.resolve_branch("CÂN CHỈNH CS08", BRANCHES, overrides) == (
+        ("153113", "CS03 - 134 Lê Lợi"), "override")
+
+
+def test_resolve_branch_ignores_override_to_missing_branch():
+    overrides = {"can chinh cs08": "999999"}
+    assert bm.resolve_branch("Cân chỉnh CS08", BRANCHES, overrides) == (
+        ("152162", "CS08 - 22 Vũ Trọng Phụng"), "matched")
+
+
+def test_resolve_branch_without_title_is_unknown():
+    assert bm.resolve_branch("", BRANCHES) == (None, "unknown")

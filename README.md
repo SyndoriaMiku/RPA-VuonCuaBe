@@ -28,7 +28,8 @@ Giao diện chia thành 3 bước:
 
 1. **① Mở Chrome Debug**: Tool tự dò Chrome trong `Program Files`, `Program Files (x86)` và `%LOCALAPPDATA%`. Nếu không thấy, Tool hỏi bạn chọn `chrome.exe` và ghi nhớ đường dẫn đó. Chrome mở với cổng debug `9999` và profile riêng `C:\ChromeDebug`. Đăng nhập KiotViet và mở **Hàng hóa > Kiểm kho**: có thể để ở trang danh sách phiếu (`#/StockTakes`) hoặc đã mở sẵn phiếu (`#/StockTakes/0`).
 2. **② Chọn dữ liệu Excel**: chọn file `.xlsx`, tên sheet và ô bắt đầu. Dòng gợi ý bên cạnh cho biết Tool sẽ đọc mã hàng và số lượng ở đâu. Sau khi chọn file, tiêu đề lấy từ ô `C2`, và nhật ký ghi tên file, sheet, các khoảng dòng sẽ xử lý.
-   - **Tự đổi cơ sở**: nếu Chrome Debug đang mở, Tool dò cơ sở theo tiêu đề `C2` và đổi cơ sở làm việc trên KiotViet cho khớp (trang tải lại khoảng 10 giây). Tool không tự đổi nếu tiêu đề khớp nhiều cơ sở, không khớp cơ sở nào, hoặc phiếu kiểm kho đang mở đã có hàng (để tránh mất dữ liệu); khi đó chỉ ghi cảnh báo vào nhật ký.
+   - **Cơ sở theo file**: danh sách cơ sở đọc từ web, tự chọn sẵn cơ sở khớp với tiêu đề `C2` (theo số CS hoặc địa điểm). Nếu chọn tay, Tool nhớ lựa chọn đó theo tiêu đề file cho lần sau. Dòng bên phải báo `✓ Khớp với web`, `⚠ Web đang ở ...`, hoặc `⚠ Không nhận ra cơ sở từ C2, hãy chọn`. Bấm **Đổi trên web** để đổi cơ sở KiotViet sang mục đang chọn.
+   - **Tự đổi cơ sở**: sau khi chọn file, nếu Chrome Debug đang mở, Tool tự đổi cơ sở làm việc trên KiotViet cho khớp (trang tải lại khoảng 10 giây). Tool không tự đổi nếu tiêu đề khớp nhiều cơ sở, không khớp cơ sở nào, hoặc phiếu kiểm kho đang mở đã có hàng (để tránh mất dữ liệu); khi đó chỉ ghi cảnh báo và bạn có thể chọn tay rồi bấm **Đổi trên web**.
 3. **③ Kiểm tra và chạy**:
    - **Kiểm tra file**: chỉ đọc Excel, không thao tác gì trên KiotViet. Báo mã trùng, số lượng không phải số và các dòng có số lượng bằng 0.
    - **▶ CHẠY TỰ ĐỘNG**: nếu file có mã trùng hoặc số lượng không hợp lệ, Tool hỏi xác nhận trước khi chạy. Thanh tiến độ hiển thị `đã xử lý/tổng`.
@@ -79,7 +80,7 @@ Cổng phải khớp với `debug_port` trong `config.json` (mặc định `9999
 
 ## Quy tắc xử lý
 
-- Khớp cơ sở theo tiêu đề `C2`, ưu tiên số CS (`CS8`, `CS08`, `cs 08` đều là CS08), sau đó đến địa điểm: địa chỉ đầy đủ (`22 Vũ Trọng Phụng`) hoặc tên đường (`Vũ Trọng Phụng`). Không phân biệt hoa/thường và dấu.
+- Khớp cơ sở theo tiêu đề `C2`, ưu tiên lựa chọn tay đã lưu cho đúng tiêu đề đó; nếu chưa có thì ưu tiên số CS (`CS8`, `CS08`, `cs 08` đều là CS08), sau đó đến địa điểm: địa chỉ đầy đủ (`22 Vũ Trọng Phụng`) hoặc tên đường (`Vũ Trọng Phụng`). Không phân biệt hoa/thường và dấu. Lựa chọn tay trỏ tới cơ sở không còn trên web sẽ bị bỏ qua.
 
 - Tool lấy số lượng hiện tại trên KiotViet và cộng với số lượng cân chỉnh trong Excel.
 - Nếu tổng nhỏ hơn 0, mã hàng đó sẽ bị bỏ qua và được ghi vào nhật ký. Sản phẩm vẫn nằm trên phiếu với số lượng mặc định của KiotViet, cần sửa tay hoặc xóa trước khi lưu.

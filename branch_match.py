@@ -74,3 +74,23 @@ def is_same_branch(title, branch_name):
     if title_number is not None and branch_number is not None:
         return title_number == branch_number
     return bool(match_branches(title, [(None, branch_name)]))
+
+
+def resolve_branch(title, branches, overrides=None):
+    """Cơ sở nên chọn cho tiêu đề file: ưu tiên lựa chọn tay đã lưu, sau đó khớp tự động.
+
+    Trả về (branch|None, lý do) với lý do là "override", "matched", "ambiguous" hoặc "unknown".
+    """
+    overrides = overrides or {}
+    key = normalize(title)
+    if key:
+        saved_id = overrides.get(key)
+        if saved_id is not None:
+            for branch in branches:
+                if str(branch[0]) == str(saved_id):
+                    return branch, "override"
+
+    matches = match_branches(title, branches)
+    if len(matches) == 1:
+        return matches[0], "matched"
+    return None, "ambiguous" if matches else "unknown"
