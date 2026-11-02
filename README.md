@@ -64,11 +64,12 @@ Lỗi hợp lệ hiện ngay cạnh ô nhập; không lưu được khi còn l�
 
 Dải ngay dưới tiêu đề cho biết trước khi bấm Chạy là Tool có thao tác được không. Nó tự cập nhật mỗi 5 giây (đổi trong **Cài đặt**):
 
-- ● xám **Chưa kết nối Chrome Debug**: kèm nút **Mở Chrome Debug**.
-- ● cam **Chưa mở KiotViet** hoặc **Chưa ở màn hình Kiểm kho**.
-- ● xanh **Danh sách kiểm kho – sẽ tự tạo phiếu mới** hoặc **Màn hình phiếu · N mã**, kèm cảnh báo nếu có bản nháp chưa lưu.
+- **● đỏ** = **chưa kết nối Chrome Debug**: kèm nút **Mở Chrome Debug**.
+- **● xanh** = **đã kết nối Chrome Debug**. Chữ bên cạnh mô tả chi tiết: **Chưa mở KiotViet**, **Chưa ở màn hình Kiểm kho**, **Danh sách kiểm kho – sẽ tự tạo phiếu mới**, hoặc **Màn hình phiếu · N mã** (kèm cảnh báo nếu có bản nháp chưa lưu).
 
-Thanh trạng thái chỉ đọc: không bấm, không gõ, không kéo cửa sổ Chrome lên trước. Khi Tool đang chạy hoặc đang đổi cơ sở, nó tạm dừng để không gửi lệnh chồng lên nhau.
+Chấm màu phản ánh **trạng thái kết nối**, không phải màn hình đang mở. Khi đã kết nối, nút **Hiện Chrome** xuất hiện để đưa cửa sổ Chrome Debug đang kết nối lên trên cùng.
+
+Thanh trạng thái chỉ đọc: không bấm, không gõ vào trang. Khi Tool đang chạy hoặc đang đổi cơ sở, nó tạm dừng để không gửi lệnh chồng lên nhau.
 
 ### Mở Chrome Debug thủ công
 

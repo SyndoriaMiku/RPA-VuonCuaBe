@@ -2,41 +2,42 @@ import threading
 
 import kiotviet
 
-STATUS_COLORS = {
-    "off": "#6B7785",
-    "warn": "#B45309",
-    "ok": "#2E7D32",
-    "busy": "#2E7D32",
+# Chấm màu chỉ phản ánh trạng thái kết nối Chrome Debug: xanh = đang kết nối, đỏ = ngắt.
+CONNECTION_COLORS = {
+    "connected": "#2E7D32",
+    "disconnected": "#C62828",
 }
 
 
 def describe_status(status, running=False):
-    """Chuyển kết quả kiotviet.read_status thành chữ + màu cho thanh trạng thái."""
+    """Chuyển kết quả kiotviet.read_status thành chữ + trạng thái kết nối cho thanh trạng thái.
+
+    Chấm màu lấy theo `connected` (đang/ngắt kết nối Chrome Debug); chữ mô tả chi tiết
+    KiotViet (cơ sở, màn hình, bản nháp). `status` là None khi chưa/chẳng còn kết nối.
+    """
     if running:
-        return {"text": "Đang chạy…", "level": "busy", "can_open_chrome": False}
+        return {"text": "Đang chạy…", "connected": True, "can_open_chrome": False}
 
     if status is None:
-        return {"text": "Chưa kết nối Chrome Debug", "level": "off", "can_open_chrome": True}
+        return {"text": "Chưa kết nối Chrome Debug", "connected": False, "can_open_chrome": True}
 
     url = str(status.get("url") or "").lower()
     if "kiotviet.vn" not in url:
-        return {"text": "Chưa mở KiotViet", "level": "warn", "can_open_chrome": False}
+        return {"text": "Chưa mở KiotViet", "connected": True, "can_open_chrome": False}
 
     page = status.get("page")
     if page == kiotviet.PAGE_LIST:
         page_text = "Danh sách kiểm kho – sẽ tự tạo phiếu mới"
-        level = "ok"
     elif page == kiotviet.PAGE_EDIT:
         page_text = f"Màn hình phiếu · {int(status.get('rows') or 0)} mã"
-        level = "ok"
         if status.get("draft"):
             page_text += "  |  ⚠ Có bản nháp chưa lưu"
     else:
-        return {"text": "Chưa ở màn hình Kiểm kho", "level": "warn", "can_open_chrome": False}
+        return {"text": "Chưa ở màn hình Kiểm kho", "connected": True, "can_open_chrome": False}
 
     branch = status.get("branch")
     text = f"Cơ sở: {branch[1]}  |  {page_text}" if branch else page_text
-    return {"text": text, "level": level, "can_open_chrome": False}
+    return {"text": text, "connected": True, "can_open_chrome": False}
 
 
 class StatusMonitor:

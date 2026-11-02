@@ -152,8 +152,8 @@ class App:
         status_inner = tk.Frame(status_bar, bg=COLORS["card"])
         status_inner.pack(fill=tk.X, padx=12, pady=6)
         self.lbl_status_dot = tk.Label(
-            status_inner, text="●", bg=COLORS["card"], fg=status_monitor.STATUS_COLORS["off"],
-            font=(FONT, 12))
+            status_inner, text="●", bg=COLORS["card"],
+            fg=status_monitor.CONNECTION_COLORS["disconnected"], font=(FONT, 12))
         self.lbl_status_dot.pack(side=tk.LEFT)
         self.lbl_status = tk.Label(
             status_inner, text="Chưa kết nối Chrome Debug", bg=COLORS["card"], fg=COLORS["text"],
@@ -161,6 +161,8 @@ class App:
         self.lbl_status.pack(side=tk.LEFT, padx=(6, 0))
         self.btn_status_chrome = ttk.Button(
             status_inner, text="Mở Chrome Debug", command=self.open_chrome_debug, padding=(8, 3))
+        self.btn_show_chrome = ttk.Button(
+            status_inner, text="Hiện Chrome", command=self.show_chrome, padding=(8, 3))
 
         # Bước 1: Chrome
         card1 = self._card(main, "Mở Chrome Debug", "①")
@@ -288,11 +290,14 @@ class App:
     def _apply_status(self, status, running=False):
         view = status_monitor.describe_status(status, running)
         self.lbl_status.config(text=view["text"])
-        self.lbl_status_dot.config(fg=status_monitor.STATUS_COLORS[view["level"]])
+        self.lbl_status_dot.config(
+            fg=status_monitor.CONNECTION_COLORS["connected" if view["connected"] else "disconnected"])
         if view["can_open_chrome"]:
+            self.btn_show_chrome.pack_forget()
             self.btn_status_chrome.pack(side=tk.RIGHT)
         else:
             self.btn_status_chrome.pack_forget()
+            self.btn_show_chrome.pack(side=tk.RIGHT)
         if status is not None:
             self._last_status = status
             self._update_branches(status.get("branches") or [])
@@ -372,6 +377,7 @@ class App:
         self.btn_check.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_settings.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_change_branch.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_show_chrome.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL if running and can_stop else tk.DISABLED)
         if running:
             self._apply_status(None, running=True)
@@ -496,6 +502,16 @@ class App:
             return
         self.log(f"Đã mở Chrome Debug (cổng {port}).", "ok")
         self.monitor.refresh()
+
+    def show_chrome(self):
+        """Đưa cửa sổ Chrome Debug đang kết nối lên trên cùng."""
+        threading.Thread(target=self._show_chrome_worker, daemon=True).start()
+
+    def _show_chrome_worker(self):
+        with self.session.exclusive(blocking=False) as driver:
+            if driver is None:
+                return  # đang chạy/đang bận: Tool tự đưa Chrome lên trong lúc chạy
+            kiotviet.bring_to_front(driver)
 
     # ------------------------------------------------------------------
     # Excel

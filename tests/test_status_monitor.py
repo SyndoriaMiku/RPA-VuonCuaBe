@@ -8,44 +8,46 @@ def status(url, page, branch=None, rows=0, draft=False):
     return {"url": url, "page": page, "branch": branch, "rows": rows, "draft": draft, "branches": []}
 
 
-def test_off_when_not_connected():
+def test_not_connected_is_marked_disconnected():
     view = status_monitor.describe_status(None)
-    assert view == {"text": "Chưa kết nối Chrome Debug", "level": "off", "can_open_chrome": True}
+    assert view == {"text": "Chưa kết nối Chrome Debug", "connected": False, "can_open_chrome": True}
 
 
-def test_warns_when_kiotviet_is_not_open():
+def test_connected_even_when_kiotviet_is_not_open():
     view = status_monitor.describe_status(status("https://example.com/", kiotviet.PAGE_OTHER))
-    assert view["level"] == "warn"
+    assert view["connected"] is True
     assert view["text"] == "Chưa mở KiotViet"
     assert view["can_open_chrome"] is False
 
 
-def test_warns_on_other_kiotviet_page():
+def test_connected_on_other_kiotviet_page():
     view = status_monitor.describe_status(
         status("https://vuoncuabe.kiotviet.vn/man/#/Products", kiotviet.PAGE_OTHER))
+    assert view["connected"] is True
     assert view["text"] == "Chưa ở màn hình Kiểm kho"
 
 
-def test_shows_stocktake_list():
+def test_connected_shows_stocktake_list():
     view = status_monitor.describe_status(
         status("https://vuoncuabe.kiotviet.vn/man/#/StockTakes", kiotviet.PAGE_LIST,
                ("152162", "CS08 - 22 Vũ Trọng Phụng")))
-    assert view["level"] == "ok"
+    assert view["connected"] is True
     assert view["text"] == "Cơ sở: CS08 - 22 Vũ Trọng Phụng  |  Danh sách kiểm kho – sẽ tự tạo phiếu mới"
 
 
-def test_shows_stocktake_rows_and_unsaved_draft():
+def test_connected_shows_stocktake_rows_and_unsaved_draft():
     view = status_monitor.describe_status(
         status("https://vuoncuabe.kiotviet.vn/man/#/StockTakes/0", kiotviet.PAGE_EDIT,
                ("152162", "CS08 - 22 Vũ Trọng Phụng"), rows=12, draft=True))
-    assert view["level"] == "ok"
+    assert view["connected"] is True
     assert "Màn hình phiếu · 12 mã" in view["text"]
     assert "Có bản nháp chưa lưu" in view["text"]
 
 
-def test_running_status_wins():
+def test_running_is_connected():
     view = status_monitor.describe_status(
         status("https://vuoncuabe.kiotviet.vn/man/#/StockTakes/0", kiotviet.PAGE_EDIT), running=True)
+    assert view["connected"] is True
     assert view["text"] == "Đang chạy…"
     assert view["can_open_chrome"] is False
 
