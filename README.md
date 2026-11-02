@@ -40,6 +40,8 @@ Giao diện chia thành 3 bước:
 
 Nhật ký có màu: xanh là thành công, cam là bỏ qua/cảnh báo, đỏ là lỗi hoặc cần kiểm tra. Có nút **Sao chép tất cả** và **Xóa**. Cuối mỗi lần chạy có thống kê thành công / bỏ qua / lỗi.
 
+Khi lần chạy kết thúc (hoàn tất, dừng hoặc lỗi kết nối), Tool phát âm thanh hệ thống của Windows và nhấp nháy biểu tượng trên taskbar cho đến khi bạn mở lại cửa sổ: âm "OK" khi mọi mã đều thành công, âm cảnh báo khi có mã bỏ qua/sai lệch/lỗi. Có thể tắt hai thông báo này trong **Cài đặt**.
+
 Các thiết lập (file, sheet, ô bắt đầu, thời gian chờ, đường dẫn Chrome) được lưu vào `config.json` cạnh `AutoApp.exe` và tự nạp lại lần sau. Có thể sửa `debug_port` và `user_data_dir` trong file này nếu cần.
 
 ### Mở Chrome Debug thủ công
@@ -112,6 +114,7 @@ Số phiên bản nằm trong `version.py`:
 - `excel_reader.py`: đọc Excel, phân tích ô bắt đầu, kiểm tra mã trùng/số lượng.
 - `config.py`: đọc/ghi `config.json`, dò đường dẫn Chrome.
 - `version.py`: số phiên bản và mã build hiển thị trên cửa sổ/nhật ký.
+- `notifier.py`: âm thanh hệ thống và nhấp nháy taskbar khi chạy xong.
 - `tests/`: test `pytest` cho các module trên (không cần Chrome hay KiotViet).
 - `AutoApp.spec`: cấu hình đóng gói bằng PyInstaller, bao gồm các DLL Tcl/Tk cần thiết từ môi trường Conda.
 - `build.ps1`: script test và build.

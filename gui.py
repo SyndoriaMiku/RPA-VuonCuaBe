@@ -10,6 +10,7 @@ import branch_match
 import config as app_config
 import excel_reader
 import kiotviet
+import notifier
 import verify
 import version
 
@@ -50,6 +51,7 @@ class App:
         self._refresh_chrome_status()
         self._refresh_cell_hint()
         self.log(f"Phiên bản {version.build_text()}")
+        self.hwnd = notifier.top_window_handle(self.root)
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # File đã dùng lần trước: load lại để hiện tiêu đề và tự đổi cơ sở như khi vừa chọn file
@@ -472,6 +474,7 @@ class App:
         self.log("Đã nhận yêu cầu dừng, Tool sẽ dừng sau khi xong mã hàng hiện tại...", "warn")
 
     def _worker(self, items, start_cell, quantity_column, result_timeout, title):
+        success = False
         try:
             try:
                 driver = kiotviet.connect_driver(self.config["debug_port"])
@@ -511,10 +514,17 @@ class App:
             )
 
             if not stats.stopped:
-                self._verify_stocktake(driver, stats.succeeded)
+                verified = self._verify_stocktake(driver, stats.succeeded)
                 self._fill_note(driver)
+                success = verified and not (stats.skipped or stats.error)
         finally:
             self.root.after(0, lambda: self._set_running(False))
+            notifier.notify_done(
+                success,
+                sound=self.config.get("notify_sound", True),
+                flash=self.config.get("notify_flash", True),
+                hwnd=self.hwnd,
+            )
 
     # ------------------------------------------------------------------
     # Cơ sở làm việc
@@ -593,20 +603,24 @@ class App:
         )
 
     def _verify_stocktake(self, driver, filled_items):
-        """Đọc lại SL lệch trên từng trang của phiếu và so với Excel cho các mã đã điền thành công."""
+        """Đọc lại SL lệch trên từng trang của phiếu và so với Excel cho các mã đã điền thành công.
+
+        Trả về True nếu mọi mã đã điền đều khớp (hoặc không có mã nào để kiểm tra).
+        """
         if not filled_items:
-            return
+            return True
         self.log("--- KIỂM TRA LẠI SL LỆCH CÁC MÃ ĐÃ ĐIỀN ---")
         try:
             web_rows = kiotviet.read_stocktake_rows(driver)
         except Exception as exc:
             first_line = str(exc).split("\n")[0]
             self.log(f"Không kiểm tra lại được phiếu: {first_line or type(exc).__name__}", "error")
-            return
+            return False
 
         report = verify.compare_adjustments(filled_items, web_rows)
         for level, text in verify.describe_report(report, kiotviet.format_qty):
             self.log(text, level)
+        return report.ok
 
     def _fill_note(self, driver):
         note_text = str(self.config["note_text"]).strip()
