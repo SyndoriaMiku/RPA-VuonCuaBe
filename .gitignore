@@ -210,3 +210,7 @@ __marimo__/
 
 # Cau hinh cuc bo cua Tool
 config.json
+
+# File kế hoạch (plan) chỉ dùng cục bộ, không đưa lên repo
+docs/plan*.md
+/plan*.md
