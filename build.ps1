@@ -10,7 +10,7 @@ if ($LASTEXITCODE -ne 0) { throw "Test lỗi, dừng build." }
 $versionFile = Join-Path $PSScriptRoot "version.py"
 $originalVersion = [IO.File]::ReadAllText($versionFile)
 $commit = (git rev-parse --short HEAD).Trim()
-$dirty = if (git status --porcelain) { "-dirty" } else { "" }
+$dirty = if (git status --porcelain --untracked-files=no) { "-dirty" } else { "" }  # chỉ tính file đã theo dõi
 $buildId = "$commit $(Get-Date -Format 'yyyy-MM-dd')$dirty"
 $utf8NoBom = New-Object System.Text.UTF8Encoding $false
 $patchedVersion = $originalVersion -replace 'BUILD = ".*"', ('BUILD = "' + $buildId + '"')

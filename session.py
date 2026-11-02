@@ -9,8 +9,11 @@ from contextlib import contextmanager
 
 
 class DriverSession:
-    def __init__(self, connect):
+    def __init__(self, connect, prepare=None):
+        """connect(): tạo driver mới. prepare(driver): gọi mỗi lần lấy driver ra dùng (ví dụ chọn
+        lại tab KiotViet); ném lỗi nghĩa là driver đã hỏng và sẽ được tạo lại."""
         self._connect = connect
+        self._prepare = prepare
         self._lock = threading.RLock()
         self._driver = None
 
@@ -44,6 +47,11 @@ class DriverSession:
         self.invalidate()
 
     def _ensure_driver(self):
+        if self._driver is not None and self._prepare is not None:
+            try:
+                self._prepare(self._driver)
+            except Exception:
+                self.invalidate()  # Chrome đã đóng/mở lại: bỏ driver cũ, kết nối lại bên dưới
         if self._driver is None:
             try:
                 self._driver = self._connect()

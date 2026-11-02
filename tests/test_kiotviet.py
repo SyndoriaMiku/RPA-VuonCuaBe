@@ -285,3 +285,74 @@ def test_reveal_item_requires_the_item_grid():
 
     with pytest.raises(RuntimeError):
         kv.reveal_item(NoGrid(), "A")
+
+
+class TabDriver:
+    """Driver giả có nhiều tab: tabs là {handle: url}."""
+
+    def __init__(self, tabs, current):
+        self.tabs = dict(tabs)
+        self.current = current
+        self.dead = False
+
+    @property
+    def window_handles(self):
+        if self.dead:
+            raise RuntimeError("chrome not reachable")
+        return list(self.tabs)
+
+    @property
+    def current_window_handle(self):
+        if self.current not in self.tabs:
+            raise RuntimeError("no such window")
+        return self.current
+
+    @property
+    def current_url(self):
+        if self.current not in self.tabs:
+            raise RuntimeError("no such window")
+        return self.tabs[self.current]
+
+    @property
+    def switch_to(self):
+        driver = self
+
+        class Switch:
+            def window(self, handle):
+                driver.current = handle
+        return Switch()
+
+
+KV_URL = "https://vuoncuabe.kiotviet.vn/man/#/StockTakes"
+
+
+def test_select_tab_keeps_current_kiotviet_tab():
+    d = TabDriver({"a": KV_URL, "b": "https://google.com"}, "a")
+    assert kv.select_kiotviet_tab(d) is True and d.current == "a"
+
+
+def test_select_tab_moves_to_kiotviet_opened_in_new_tab():
+    # Tool kết nối khi tab đang trống, sau đó người dùng mở KiotViet ở tab mới
+    d = TabDriver({"blank": "about:blank", "new": KV_URL}, "blank")
+    assert kv.select_kiotviet_tab(d) is True and d.current == "new"
+
+
+def test_select_tab_recovers_when_current_tab_was_closed():
+    d = TabDriver({"other": KV_URL}, "closed")
+    assert kv.select_kiotviet_tab(d) is True and d.current == "other"
+
+
+def test_select_tab_without_kiotviet_stays_on_a_live_tab():
+    d = TabDriver({"x": "about:blank"}, "gone")
+    assert kv.select_kiotviet_tab(d) is False and d.current == "x"
+
+
+def test_select_tab_raises_when_chrome_is_gone():
+    d = TabDriver({"a": KV_URL}, "a")
+    d.dead = True
+    try:
+        kv.select_kiotviet_tab(d)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("phải báo lỗi để phiên dùng chung tạo lại driver")

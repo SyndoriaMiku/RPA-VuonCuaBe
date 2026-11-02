@@ -42,6 +42,10 @@ def page(rows, with_data_field=True, draft_dialog=False):
               '<button class="kv-btn-confirm">Đồng ý</button></div>') if draft_dialog else ""
     return f"""<!doctype html><html><body>
       <input id="productSearchInput">
+      <select id="cbSelectBranch" style="display:none">
+        <option value="152603">CS01 - 38 Nguyễn Viết Xuân</option>
+        <option value="152162" selected>CS08 - 22 Vũ Trọng Phụng</option>
+      </select>
       <div class="k-grid" id="grdAuditTrails">
         <table role="grid"><thead><tr><th data-field="ProductCode">Mã</th><th data-field="date">Thời gian</th></tr></thead></table>
         <table role="grid"><tbody><tr><td>KHAC-01</td><td>01/10</td></tr></tbody></table>
@@ -122,3 +126,21 @@ def test_dialog_without_draft_text_is_left_alone(open_page):
                                          '<button class="kv-btn-cancel">Bỏ qua</button></div></body>')
     d = open_page(html)
     assert kv.dismiss_draft_dialog(d) is False
+
+
+def test_read_status_reads_branch_rows_and_draft(open_page):
+    d = open_page(page(ROWS, draft_dialog=True))
+    status = kv.read_status(d)
+    assert status["page"] == kv.PAGE_EDIT
+    assert status["branch"] == ("152162", "CS08 - 22 Vũ Trọng Phụng")
+    assert status["branches"] == [("152603", "CS01 - 38 Nguyễn Viết Xuân"), ("152162", "CS08 - 22 Vũ Trọng Phụng")]
+    assert status["rows"] == 2
+    assert status["draft"] is True
+
+
+def test_read_status_on_list_page_without_draft(open_page):
+    d = open_page(page([]), hash_path="#/StockTakes")
+    status = kv.read_status(d)
+    assert status["page"] == kv.PAGE_LIST
+    assert status["branch"] == ("152162", "CS08 - 22 Vũ Trọng Phụng")
+    assert status["rows"] == 0 and status["draft"] is False

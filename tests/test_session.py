@@ -102,3 +102,32 @@ def test_debug_port_available_detects_open_and_closed_port():
         listener.close()
 
     assert not session.debug_port_available(port, timeout=0.2)
+
+
+def test_prepare_runs_each_time_the_driver_is_reused():
+    prepared = []
+    shared = session.DriverSession(lambda: FakeDriver("d"), prepare=lambda d: prepared.append(d.name))
+    shared.get()
+    shared.get()
+    with shared.exclusive() as driver:
+        assert driver.name == "d"
+    # lần đầu là driver vừa tạo nên không cần prepare; các lần dùng lại thì có
+    assert prepared == ["d", "d"]
+
+
+def test_broken_driver_is_replaced_when_prepare_fails():
+    created = []
+
+    def connect():
+        created.append(FakeDriver(len(created)))
+        return created[-1]
+
+    def prepare(driver):
+        if driver.name == 0:
+            raise RuntimeError("chrome đã đóng")
+
+    shared = session.DriverSession(connect, prepare=prepare)
+    first = shared.get()
+    second = shared.get()
+    assert first.name == 0 and first.quit_called
+    assert second.name == 1 and len(created) == 2

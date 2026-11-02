@@ -49,7 +49,8 @@ class App:
         self._current_title = ""
         self._link_seq = 0
         self.session = session.DriverSession(
-            lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False))
+            lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False),
+            prepare=kiotviet.select_kiotviet_tab)
 
         self.root = tk.Tk()
         self.root.title(version.window_title())
@@ -248,11 +249,16 @@ class App:
         self.txt_log.bind("<Control-a>", self._select_all_log)
         self.txt_log.bind("<Button-1>", lambda event: self.txt_log.focus_set())
 
-        ttk.Label(main, text=version.build_text(), style="Footer.TLabel").pack(anchor="e", pady=(6, 0))
+        # Đặt ở đáy và pack trước khung nhật ký, để khi cửa sổ thấp thì nhật ký co lại chứ không che mất dòng này
+        ttk.Label(main, text=version.build_text(), style="Footer.TLabel").pack(
+            side=tk.BOTTOM, anchor="e", pady=(6, 0), before=log_header)
 
     def _center_window(self):
         self.root.update_idletasks()
-        width, height = self.root.winfo_width(), self.root.winfo_height()
+        # Cao vừa đủ cho toàn bộ giao diện (gồm ~10 dòng nhật ký), nhưng không vượt quá màn hình
+        width = self.root.winfo_width()
+        height = min(max(740, self.root.winfo_reqheight() + 20), self.root.winfo_screenheight() - 80)
+        self.root.geometry(f"{width}x{height}")
         x = (self.root.winfo_screenwidth() - width) // 2
         y = (self.root.winfo_screenheight() - height) // 3
         self.root.geometry(f"+{max(x, 0)}+{max(y, 0)}")

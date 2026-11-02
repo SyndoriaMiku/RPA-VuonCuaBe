@@ -134,14 +134,33 @@ def connect_driver(port, focus=True):
     chrome_options = Options()
     chrome_options.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
     driver = webdriver.Chrome(options=chrome_options)
-
-    for handle in driver.window_handles:
-        driver.switch_to.window(handle)
-        if "kiotviet.vn" in driver.current_url.lower():
-            break
+    select_kiotviet_tab(driver)
     if focus:
         bring_to_front(driver)
     return driver
+
+
+def select_kiotviet_tab(driver):
+    """Đảm bảo driver đang trỏ vào tab KiotViet (tab hiện tại nếu đúng, nếu không thì tìm tab khác).
+
+    Gọi mỗi lần dùng lại driver: người dùng có thể mở KiotViet ở tab mới hoặc đóng tab cũ sau
+    khi Tool đã kết nối. Không có tab KiotViet thì giữ một tab còn sống. Ném lỗi nếu Chrome đã
+    mất kết nối, để phiên dùng chung tạo lại driver.
+    """
+    handles = driver.window_handles  # Chrome đã đóng thì lệnh này ném lỗi
+    try:
+        if driver.current_window_handle in handles and "kiotviet.vn" in driver.current_url.lower():
+            return True
+    except Exception:
+        pass  # tab hiện tại đã bị đóng
+
+    for handle in handles:
+        driver.switch_to.window(handle)
+        if "kiotviet.vn" in driver.current_url.lower():
+            return True
+    if handles:
+        driver.switch_to.window(handles[0])
+    return False
 
 
 def bring_to_front(driver):
@@ -349,8 +368,10 @@ def get_branches(driver):
 
 
 _STATUS_JS = _GRID_LIB_JS + """
+// Lấy tham số ở cấp ngoài cùng: bên trong hàm con, `arguments` là của hàm con chứ không phải của Selenium
+var selectId = arguments[0];
 return (function () {
-    var select = document.getElementById(arguments[0]);
+    var select = document.getElementById(selectId);
     var branch = null;
     var branches = [];
     if (select) {
