@@ -42,7 +42,20 @@ Nhật ký có màu: xanh là thành công, cam là bỏ qua/cảnh báo, đỏ 
 
 Khi lần chạy kết thúc (hoàn tất, dừng hoặc lỗi kết nối), Tool phát âm thanh hệ thống của Windows và nhấp nháy biểu tượng trên taskbar cho đến khi bạn mở lại cửa sổ: âm "OK" khi mọi mã đều thành công, âm cảnh báo khi có mã bỏ qua/sai lệch/lỗi. Có thể tắt hai thông báo này trong **Cài đặt**.
 
-Các thiết lập (file, sheet, ô bắt đầu, thời gian chờ, đường dẫn Chrome) được lưu vào `config.json` cạnh `AutoApp.exe` và tự nạp lại lần sau. Có thể sửa `debug_port` và `user_data_dir` trong file này nếu cần.
+Các thiết lập (file, sheet, ô bắt đầu, thời gian chờ, đường dẫn Chrome) được lưu vào `config.json` cạnh `AutoApp.exe` và tự nạp lại lần sau. Các thiết lập còn lại sửa trong **⚙ Cài đặt** (xem bên dưới).
+
+## Cài đặt
+
+Bấm **⚙ Cài đặt** ở góc trên bên phải cửa sổ để sửa các thiết lập mà không cần mở `config.json`:
+
+| Nhóm | Thiết lập | Khóa trong `config.json` |
+|------|-----------|--------------------------|
+| Chrome | Đường dẫn `chrome.exe` (Chọn… / Tự dò), cổng debug, thư mục profile | `chrome_path`, `debug_port`, `user_data_dir` |
+| Chạy | Chờ kết quả tối đa (1–60 giây), nội dung ghi chú sau khi chạy (tối đa 2000 ký tự) | `wait_seconds`, `note_text` |
+| Thông báo | Âm thanh khi xong, nhấp nháy taskbar | `notify_sound`, `notify_flash` |
+| Trạng thái | Tần suất cập nhật thanh trạng thái (3–60 giây) | `status_interval` |
+
+Lỗi hợp lệ hiện ngay cạnh ô nhập; không lưu được khi còn lỗi. Nút **Khôi phục mặc định** đưa các ô về giá trị gốc (chưa lưu cho đến khi bấm **Lưu**). Không mở được Cài đặt khi Tool đang chạy.
 
 ### Mở Chrome Debug thủ công
 
@@ -112,7 +125,8 @@ Số phiên bản nằm trong `version.py`:
 - `verify.py`: so SL lệch trên phiếu với số lượng trong Excel cho các mã đã điền.
 - `branch_match.py`: khớp tiêu đề file với cơ sở trên web (theo số CS hoặc địa điểm, không phân biệt dấu).
 - `excel_reader.py`: đọc Excel, phân tích ô bắt đầu, kiểm tra mã trùng/số lượng.
-- `config.py`: đọc/ghi `config.json`, dò đường dẫn Chrome.
+- `config.py`: đọc/ghi `config.json`, dò đường dẫn Chrome, kiểm tra thiết lập.
+- `settings_dialog.py`: cửa sổ Cài đặt.
 - `version.py`: số phiên bản và mã build hiển thị trên cửa sổ/nhật ký.
 - `notifier.py`: âm thanh hệ thống và nhấp nháy taskbar khi chạy xong.
 - `tests/`: test `pytest` cho các module trên (không cần Chrome hay KiotViet).

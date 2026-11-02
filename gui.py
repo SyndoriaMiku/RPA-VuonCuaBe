@@ -11,6 +11,7 @@ import config as app_config
 import excel_reader
 import kiotviet
 import notifier
+import settings_dialog
 import verify
 import version
 
@@ -115,8 +116,12 @@ class App:
         # Tiêu đề
         header = ttk.Frame(main)
         header.pack(fill=tk.X, pady=(0, 12))
-        self.lbl_title = ttk.Label(header, text="Auto Robot KiotViet", style="Title.TLabel")
-        self.lbl_title.pack(anchor="w")
+        header_top = ttk.Frame(header)
+        header_top.pack(fill=tk.X)
+        self.lbl_title = ttk.Label(header_top, text="Auto Robot KiotViet", style="Title.TLabel")
+        self.lbl_title.pack(side=tk.LEFT, anchor="w")
+        self.btn_settings = ttk.Button(header_top, text="⚙  Cài đặt", command=self.open_settings)
+        self.btn_settings.pack(side=tk.RIGHT, anchor="n")
         ttk.Label(
             header, style="Subtitle.TLabel",
             text="Nhập số lượng cân chỉnh từ Excel vào màn hình kiểm kho KiotViet. Luôn kiểm tra lại trước khi lưu phiếu.",
@@ -221,6 +226,26 @@ class App:
         else:
             self.lbl_chrome.config(text="Chưa tìm thấy Chrome. Bấm nút bên phải để chọn chrome.exe.")
 
+    def open_settings(self):
+        if self.running:
+            messagebox.showwarning("Đang chạy", "Không thể đổi cài đặt khi Tool đang chạy.")
+            return
+        self._save_config()
+
+        dialog = settings_dialog.SettingsDialog(self.root, self.config)
+        self.wait_window(dialog)
+        if dialog.result is None:
+            return
+
+        old_port = self.config.get("debug_port")
+        self.config.update(dialog.result)
+        self._save_config()
+        self.combo_wait.set(str(self.config["wait_seconds"]))
+        self._refresh_chrome_status()
+        if str(old_port) != str(self.config["debug_port"]):
+            self.log("Đã đổi cổng debug; lần kết nối Chrome tiếp theo sẽ dùng cổng mới.", "warn")
+        self.log("Đã lưu cài đặt.", "ok")
+
     # ------------------------------------------------------------------
     # Tiện ích an toàn đa luồng
     # ------------------------------------------------------------------
@@ -257,6 +282,7 @@ class App:
         self.running = running
         self.btn_run.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_check.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_settings.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL if running and can_stop else tk.DISABLED)
 
     def ask_yes_no(self, title, message):

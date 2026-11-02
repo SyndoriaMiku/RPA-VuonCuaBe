@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import shutil
@@ -16,12 +17,16 @@ DEFAULTS = {
     "debug_port": 9999,
     "user_data_dir": r"C:\ChromeDebug",
     "note_text": "Cân hàng lệch",
+    "notify_sound": True,
+    "notify_flash": True,
+    "status_interval": 5,
+    "branch_overrides": {},
 }
 
 
 def load_config(path=None):
     path = path or CONFIG_PATH
-    config = dict(DEFAULTS)
+    config = copy.deepcopy(DEFAULTS)
     try:
         with open(path, "r", encoding="utf-8") as f:
             saved = json.load(f)
@@ -39,6 +44,53 @@ def save_config(config, path=None):
     data = {key: config.get(key, default) for key, default in DEFAULTS.items()}
     with open(path, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def _as_int(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        return int(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def _as_float(value):
+    if isinstance(value, bool):
+        return None
+    try:
+        return float(str(value).strip())
+    except (TypeError, ValueError):
+        return None
+
+
+def validate_config(cfg):
+    """Kiểm tra các thiết lập trong cửa sổ Cài đặt. Trả về {khóa: lỗi}; rỗng là hợp lệ."""
+    errors = {}
+
+    chrome_path = str(cfg.get("chrome_path") or "").strip()
+    if chrome_path and not os.path.isfile(chrome_path):
+        errors["chrome_path"] = "Không tìm thấy chrome.exe ở đường dẫn này."
+
+    port = _as_int(cfg.get("debug_port"))
+    if port is None or not 1024 <= port <= 65535:
+        errors["debug_port"] = "Cổng debug phải là số nguyên từ 1024 đến 65535."
+
+    if not str(cfg.get("user_data_dir") or "").strip():
+        errors["user_data_dir"] = "Thư mục profile không được để trống."
+
+    wait = _as_float(cfg.get("wait_seconds"))
+    if wait is None or not 1 <= wait <= 60:
+        errors["wait_seconds"] = "Thời gian chờ phải từ 1 đến 60 giây."
+
+    if len(str(cfg.get("note_text") or "")) > 2000:
+        errors["note_text"] = "Ghi chú tối đa 2000 ký tự."
+
+    interval = _as_int(cfg.get("status_interval"))
+    if interval is None or not 3 <= interval <= 60:
+        errors["status_interval"] = "Tần suất cập nhật phải từ 3 đến 60 giây."
+
+    return errors
 
 
 def chrome_candidates():
