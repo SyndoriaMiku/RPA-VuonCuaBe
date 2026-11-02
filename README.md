@@ -57,6 +57,16 @@ Bấm **⚙ Cài đặt** ở góc trên bên phải cửa sổ để sửa các
 
 Lỗi hợp lệ hiện ngay cạnh ô nhập; không lưu được khi còn lỗi. Nút **Khôi phục mặc định** đưa các ô về giá trị gốc (chưa lưu cho đến khi bấm **Lưu**). Không mở được Cài đặt khi Tool đang chạy.
 
+## Thanh trạng thái
+
+Dải ngay dưới tiêu đề cho biết trước khi bấm Chạy là Tool có thao tác được không. Nó tự cập nhật mỗi 5 giây (đổi trong **Cài đặt**):
+
+- ● xám **Chưa kết nối Chrome Debug**: kèm nút **Mở Chrome Debug**.
+- ● cam **Chưa mở KiotViet** hoặc **Chưa ở màn hình Kiểm kho**.
+- ● xanh **Danh sách kiểm kho – sẽ tự tạo phiếu mới** hoặc **Màn hình phiếu · N mã**, kèm cảnh báo nếu có bản nháp chưa lưu.
+
+Thanh trạng thái chỉ đọc: không bấm, không gõ, không kéo cửa sổ Chrome lên trước. Khi Tool đang chạy hoặc đang đổi cơ sở, nó tạm dừng để không gửi lệnh chồng lên nhau.
+
 ### Mở Chrome Debug thủ công
 
 Nếu không dùng nút **Mở Chrome Debug**, có thể tạo shortcut Chrome với lệnh sau:
@@ -129,6 +139,8 @@ Số phiên bản nằm trong `version.py`:
 - `settings_dialog.py`: cửa sổ Cài đặt.
 - `version.py`: số phiên bản và mã build hiển thị trên cửa sổ/nhật ký.
 - `notifier.py`: âm thanh hệ thống và nhấp nháy taskbar khi chạy xong.
+- `session.py`: giữ một phiên Selenium dùng chung, khóa để các luồng không chồng lệnh.
+- `status_monitor.py`: đọc trạng thái KiotViet định kỳ và chuyển thành chữ/màu cho thanh trạng thái.
 - `tests/`: test `pytest` cho các module trên (không cần Chrome hay KiotViet).
 - `AutoApp.spec`: cấu hình đóng gói bằng PyInstaller, bao gồm các DLL Tcl/Tk cần thiết từ môi trường Conda.
 - `build.ps1`: script test và build.

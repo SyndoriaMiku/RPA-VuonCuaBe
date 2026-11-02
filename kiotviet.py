@@ -126,8 +126,11 @@ def text_contains_code(text, code):
     return re.search(pattern, str(text or ""), re.IGNORECASE) is not None
 
 
-def connect_driver(port):
-    """Gắn Selenium vào Chrome debug đang mở và chuyển sang tab KiotViet nếu có."""
+def connect_driver(port, focus=True):
+    """Gắn Selenium vào Chrome debug đang mở và chuyển sang tab KiotViet nếu có.
+
+    `focus=False` dùng cho thanh trạng thái: không kéo cửa sổ Chrome lên trước.
+    """
     chrome_options = Options()
     chrome_options.add_experimental_option("debuggerAddress", f"127.0.0.1:{port}")
     driver = webdriver.Chrome(options=chrome_options)
@@ -136,7 +139,8 @@ def connect_driver(port):
         driver.switch_to.window(handle)
         if "kiotviet.vn" in driver.current_url.lower():
             break
-    bring_to_front(driver)
+    if focus:
+        bring_to_front(driver)
     return driver
 
 
@@ -342,6 +346,52 @@ def get_branches(driver):
             "return s ? Array.from(s.options).map(o => [o.value, o.text]) : [];",
             BRANCH_SELECT_ID)
     ]
+
+
+_STATUS_JS = _GRID_LIB_JS + """
+return (function () {
+    var select = document.getElementById(arguments[0]);
+    var branch = null;
+    var branches = [];
+    if (select) {
+        for (var i = 0; i < select.options.length; i++) {
+            branches.push([String(select.options[i].value), select.options[i].text]);
+        }
+        if (select.selectedIndex >= 0 && select.options[select.selectedIndex]) {
+            branch = [String(select.value), select.options[select.selectedIndex].text];
+        }
+    }
+
+    var rows = 0;
+    try { rows = kvItemRows().length; } catch (e) { rows = 0; }
+
+    var draft = false;
+    var wins = document.querySelectorAll('.k-window');
+    for (var j = 0; j < wins.length; j++) {
+        if (wins[j].offsetParent !== null && /bản nháp/i.test(wins[j].textContent)) {
+            draft = true;
+            break;
+        }
+    }
+
+    return {url: location.href, branch: branch, branches: branches, rows: rows, draft: draft};
+})();
+"""
+
+
+def read_status(driver):
+    """Đọc trạng thái KiotViet bằng một lần execute_script, không bấm/gõ gì."""
+    raw = driver.execute_script(_STATUS_JS, BRANCH_SELECT_ID) or {}
+    url = raw.get("url") or ""
+    branch = raw.get("branch")
+    return {
+        "url": url,
+        "page": page_state_from_url(url),
+        "branch": tuple(branch) if branch else None,
+        "branches": [tuple(b) for b in raw.get("branches") or []],
+        "rows": int(raw.get("rows") or 0),
+        "draft": bool(raw.get("draft")),
+    }
 
 
 def change_branch(driver, branch_id, timeout=45):

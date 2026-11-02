@@ -164,3 +164,63 @@ def test_read_row_order():
     assert kv.read_row_order(GridDriver([]), GridRow({kv.FIELD_STT: " 117 "})) == "117"
     assert kv.read_row_order(GridDriver([]), GridRow({kv.FIELD_STT: ""})) is None
     assert kv.read_row_order(GridDriver([]), GridRow({})) is None
+
+
+class FakeSwitchTo:
+    def window(self, handle):
+        pass
+
+
+class FakeBrowser:
+    window_handles = ["tab-1"]
+    current_url = "https://vuoncuabe.kiotviet.vn/man/#/StockTakes/0"
+
+    def __init__(self, options):
+        self.switch_to = FakeSwitchTo()
+
+
+def test_connect_driver_skips_bring_to_front_when_focus_is_false(monkeypatch):
+    focused = []
+    monkeypatch.setattr(kv.webdriver, "Chrome", FakeBrowser)
+    monkeypatch.setattr(kv, "bring_to_front", focused.append)
+
+    kv.connect_driver(9999, focus=False)
+    assert focused == []
+
+    kv.connect_driver(9999)
+    assert len(focused) == 1
+
+
+class StatusDriver:
+    def __init__(self, result):
+        self.result = result
+
+    def execute_script(self, script, *args):
+        return self.result
+
+
+def test_read_status_reads_page_branch_rows_and_draft():
+    driver = StatusDriver({
+        "url": "https://vuoncuabe.kiotviet.vn/man/#/StockTakes/0",
+        "branch": ["152162", "CS08 - 22 Vũ Trọng Phụng"],
+        "branches": [["152162", "CS08 - 22 Vũ Trọng Phụng"], ["151550", "CS02 - 68 Linh Lang"]],
+        "rows": 12,
+        "draft": True,
+    })
+    status = kv.read_status(driver)
+    assert status == {
+        "url": "https://vuoncuabe.kiotviet.vn/man/#/StockTakes/0",
+        "page": kv.PAGE_EDIT,
+        "branch": ("152162", "CS08 - 22 Vũ Trọng Phụng"),
+        "branches": [("152162", "CS08 - 22 Vũ Trọng Phụng"), ("151550", "CS02 - 68 Linh Lang")],
+        "rows": 12,
+        "draft": True,
+    }
+
+
+def test_read_status_handles_missing_kiotviet_page():
+    status = kv.read_status(StatusDriver({
+        "url": "https://example.com/", "branch": None, "branches": [], "rows": 0, "draft": False}))
+    assert status["page"] == kv.PAGE_OTHER
+    assert status["branch"] is None and status["branches"] == []
+    assert status["rows"] == 0 and status["draft"] is False

@@ -11,7 +11,9 @@ import config as app_config
 import excel_reader
 import kiotviet
 import notifier
+import session
 import settings_dialog
+import status_monitor
 import verify
 import version
 
@@ -40,6 +42,9 @@ class App:
         self.config = app_config.load_config()
         self.stop_event = threading.Event()
         self.running = False
+        self._last_status = None
+        self.session = session.DriverSession(
+            lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False))
 
         self.root = tk.Tk()
         self.root.title(version.window_title())
@@ -53,6 +58,13 @@ class App:
         self._refresh_cell_hint()
         self.log(f"Phiên bản {version.build_text()}")
         self.hwnd = notifier.top_window_handle(self.root)
+        self.monitor = status_monitor.StatusMonitor(
+            self.session,
+            self._on_status_update,
+            interval=float(self.config["status_interval"]),
+            available=lambda: session.debug_port_available(self.config["debug_port"]),
+        )
+        self.monitor.start()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # File đã dùng lần trước: load lại để hiện tiêu đề và tự đổi cơ sở như khi vừa chọn file
@@ -126,6 +138,23 @@ class App:
             header, style="Subtitle.TLabel",
             text="Nhập số lượng cân chỉnh từ Excel vào màn hình kiểm kho KiotViet. Luôn kiểm tra lại trước khi lưu phiếu.",
         ).pack(anchor="w")
+
+        # Thanh trạng thái KiotViet (chỉ đọc, cập nhật định kỳ)
+        status_bar = tk.Frame(
+            main, bg=COLORS["card"], highlightbackground=COLORS["border"], highlightthickness=1)
+        status_bar.pack(fill=tk.X, pady=(0, 10))
+        status_inner = tk.Frame(status_bar, bg=COLORS["card"])
+        status_inner.pack(fill=tk.X, padx=12, pady=6)
+        self.lbl_status_dot = tk.Label(
+            status_inner, text="●", bg=COLORS["card"], fg=status_monitor.STATUS_COLORS["off"],
+            font=(FONT, 12))
+        self.lbl_status_dot.pack(side=tk.LEFT)
+        self.lbl_status = tk.Label(
+            status_inner, text="Chưa kết nối Chrome Debug", bg=COLORS["card"], fg=COLORS["text"],
+            font=(FONT, 9), anchor="w")
+        self.lbl_status.pack(side=tk.LEFT, padx=(6, 0))
+        self.btn_status_chrome = ttk.Button(
+            status_inner, text="Mở Chrome Debug", command=self.open_chrome_debug, padding=(8, 3))
 
         # Bước 1: Chrome
         card1 = self._card(main, "Mở Chrome Debug", "①")
@@ -226,6 +255,24 @@ class App:
         else:
             self.lbl_chrome.config(text="Chưa tìm thấy Chrome. Bấm nút bên phải để chọn chrome.exe.")
 
+    def _on_status_update(self, status):
+        """Nhận trạng thái từ luồng nền và chuyển về main thread của Tk."""
+        try:
+            self.root.after(0, lambda: self._apply_status(status))
+        except (tk.TclError, RuntimeError):
+            pass
+
+    def _apply_status(self, status, running=False):
+        view = status_monitor.describe_status(status, running)
+        self.lbl_status.config(text=view["text"])
+        self.lbl_status_dot.config(fg=status_monitor.STATUS_COLORS[view["level"]])
+        if view["can_open_chrome"]:
+            self.btn_status_chrome.pack(side=tk.RIGHT)
+        else:
+            self.btn_status_chrome.pack_forget()
+        if status is not None:
+            self._last_status = status
+
     def open_settings(self):
         if self.running:
             messagebox.showwarning("Đang chạy", "Không thể đổi cài đặt khi Tool đang chạy.")
@@ -242,9 +289,12 @@ class App:
         self._save_config()
         self.combo_wait.set(str(self.config["wait_seconds"]))
         self._refresh_chrome_status()
+        self.monitor.set_interval(self.config["status_interval"])
         if str(old_port) != str(self.config["debug_port"]):
+            self.session.close()
             self.log("Đã đổi cổng debug; lần kết nối Chrome tiếp theo sẽ dùng cổng mới.", "warn")
         self.log("Đã lưu cài đặt.", "ok")
+        self.monitor.refresh()
 
     # ------------------------------------------------------------------
     # Tiện ích an toàn đa luồng
@@ -284,6 +334,11 @@ class App:
         self.btn_check.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_settings.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL if running and can_stop else tk.DISABLED)
+        if running:
+            self._apply_status(None, running=True)
+        else:
+            self._apply_status(self._last_status)
+            self.monitor.refresh()
 
     def ask_yes_no(self, title, message):
         """Hỏi Có/Không từ luồng phụ: hiện hộp thoại trên main thread và chờ câu trả lời."""
@@ -342,6 +397,8 @@ class App:
 
     def _on_close(self):
         self._save_config()
+        self.monitor.stop()
+        self.session.close()
         self.root.destroy()
 
     # ------------------------------------------------------------------
@@ -357,6 +414,7 @@ class App:
             self.config["chrome_path"] = chrome_path
             self._refresh_chrome_status()
 
+        self.session.close()
         subprocess.run(["taskkill", "/f", "/im", "chromedriver.exe"], capture_output=True)
 
         port = self.config["debug_port"]
@@ -370,6 +428,7 @@ class App:
             messagebox.showerror("Lỗi", f"Không thể mở Chrome Debug:\n{exc}")
             return
         self.log(f"Đã mở Chrome Debug (cổng {port}).", "ok")
+        self.monitor.refresh()
 
     # ------------------------------------------------------------------
     # Excel
@@ -502,47 +561,47 @@ class App:
     def _worker(self, items, start_cell, quantity_column, result_timeout, title):
         success = False
         try:
-            try:
-                driver = kiotviet.connect_driver(self.config["debug_port"])
-            except Exception as exc:
-                self.notify("showerror", "Lỗi kết nối",
-                            f"Không thể kết nối với Chrome Debug. Hãy bấm 'Mở Chrome Debug' trước.\n\n{exc}")
-                return
+            with self.session.exclusive() as driver:
+                if driver is None:
+                    self.notify("showerror", "Lỗi kết nối",
+                                "Không thể kết nối với Chrome Debug. Hãy bấm 'Mở Chrome Debug' trước.")
+                    return
+                kiotviet.bring_to_front(driver)
 
-            self.log("----------------------------------------")
-            if not self._confirm_branch(driver, title):
-                self.log("Đã hủy chạy vì cơ sở không khớp.", "warn")
-                return
+                self.log("----------------------------------------")
+                if not self._confirm_branch(driver, title):
+                    self.log("Đã hủy chạy vì cơ sở không khớp.", "warn")
+                    return
 
-            try:
-                page, discarded_draft = kiotviet.ensure_stocktake_page(driver)
-            except Exception as exc:
-                self.notify("showerror", "Chưa ở màn hình Kiểm kho", str(exc).split("\n")[0])
-                return
-            if page == "created":
-                self.log("Đang ở danh sách kiểm kho: đã bấm 'Kiểm kho' để tạo phiếu mới.", "ok")
-            if discarded_draft:
-                self.log("KiotViet hỏi mở bản nháp chưa lưu: đã chọn 'Bỏ qua' (bản nháp cũ bị xóa) "
-                         "để nhập file này vào phiếu mới.", "warn")
+                try:
+                    page, discarded_draft = kiotviet.ensure_stocktake_page(driver)
+                except Exception as exc:
+                    self.notify("showerror", "Chưa ở màn hình Kiểm kho", str(exc).split("\n")[0])
+                    return
+                if page == "created":
+                    self.log("Đang ở danh sách kiểm kho: đã bấm 'Kiểm kho' để tạo phiếu mới.", "ok")
+                if discarded_draft:
+                    self.log("KiotViet hỏi mở bản nháp chưa lưu: đã chọn 'Bỏ qua' (bản nháp cũ bị xóa) "
+                             "để nhập file này vào phiếu mới.", "warn")
 
-            self.log(f"Đọc Excel từ {start_cell}; số lượng tại cột {quantity_column}.")
-            self.log(f"Bắt đầu chạy {len(items)} mã hàng...")
+                self.log(f"Đọc Excel từ {start_cell}; số lượng tại cột {quantity_column}.")
+                self.log(f"Bắt đầu chạy {len(items)} mã hàng...")
 
-            stats = automation.run_items(
-                driver, items, result_timeout, self.stop_event, self.log, self.update_progress)
+                stats = automation.run_items(
+                    driver, items, result_timeout, self.stop_event, self.log, self.update_progress)
 
-            self.log("--- ĐÃ DỪNG THEO YÊU CẦU ---" if stats.stopped else "--- HOÀN TẤT QUÁ TRÌNH ---",
-                     "warn" if stats.stopped else "ok")
-            self.log(
-                f"Thành công: {stats.ok} | Bỏ qua: {stats.skipped} | Lỗi/cần kiểm tra: {stats.error} | "
-                f"Tổng: {len(items)}",
-                "ok" if not (stats.skipped or stats.error) else "info",
-            )
+                self.log("--- ĐÃ DỪNG THEO YÊU CẦU ---" if stats.stopped else "--- HOÀN TẤT QUÁ TRÌNH ---",
+                         "warn" if stats.stopped else "ok")
+                self.log(
+                    f"Thành công: {stats.ok} | Bỏ qua: {stats.skipped} | Lỗi/cần kiểm tra: {stats.error} | "
+                    f"Tổng: {len(items)}",
+                    "ok" if not (stats.skipped or stats.error) else "info",
+                )
 
-            if not stats.stopped:
-                verified = self._verify_stocktake(driver, stats.succeeded)
-                self._fill_note(driver)
-                success = verified and not (stats.skipped or stats.error)
+                if not stats.stopped:
+                    verified = self._verify_stocktake(driver, stats.succeeded)
+                    self._fill_note(driver)
+                    success = verified and not (stats.skipped or stats.error)
         finally:
             self.root.after(0, lambda: self._set_running(False))
             notifier.notify_done(
@@ -564,40 +623,44 @@ class App:
 
     def _switch_branch_worker(self, title):
         try:
-            try:
-                driver = kiotviet.connect_driver(self.config["debug_port"])
-                current = kiotviet.get_current_branch(driver)
-                branches = kiotviet.get_branches(driver)
-            except Exception:
-                self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa tự đổi cơ sở.", "warn")
-                return
-            if not current or not branches:
-                self.log("Không đọc được danh sách cơ sở trên web nên chưa tự đổi cơ sở.", "warn")
-                return
+            with self.session.exclusive() as driver:
+                if driver is None:
+                    self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa tự đổi cơ sở.", "warn")
+                    return
+                try:
+                    current = kiotviet.get_current_branch(driver)
+                    branches = kiotviet.get_branches(driver)
+                except Exception:
+                    self.session.invalidate()
+                    self.log("Chưa kết nối được Chrome Debug/KiotViet nên chưa tự đổi cơ sở.", "warn")
+                    return
+                if not current or not branches:
+                    self.log("Không đọc được danh sách cơ sở trên web nên chưa tự đổi cơ sở.", "warn")
+                    return
 
-            matches = branch_match.match_branches(title, branches)
-            if not matches:
-                self.log(f"Không xác định được cơ sở từ tiêu đề file. Giữ cơ sở hiện tại: {current[1]}.", "warn")
-                return
-            if len(matches) > 1:
-                names = ", ".join(name for _, name in matches)
-                self.log(f"Tiêu đề file khớp nhiều cơ sở ({names}). Giữ cơ sở hiện tại: {current[1]}.", "warn")
-                return
+                matches = branch_match.match_branches(title, branches)
+                if not matches:
+                    self.log(f"Không xác định được cơ sở từ tiêu đề file. Giữ cơ sở hiện tại: {current[1]}.", "warn")
+                    return
+                if len(matches) > 1:
+                    names = ", ".join(name for _, name in matches)
+                    self.log(f"Tiêu đề file khớp nhiều cơ sở ({names}). Giữ cơ sở hiện tại: {current[1]}.", "warn")
+                    return
 
-            target_id, target_name = matches[0]
-            if target_id == current[0]:
-                self.log(f"Cơ sở đang làm việc đã đúng: {current[1]}.", "ok")
-                return
+                target_id, target_name = matches[0]
+                if target_id == current[0]:
+                    self.log(f"Cơ sở đang làm việc đã đúng: {current[1]}.", "ok")
+                    return
 
-            if kiotviet.get_page_state(driver) == kiotviet.PAGE_EDIT and kiotviet.count_item_rows(driver):
-                self.log(
-                    f"Phiếu kiểm kho đang mở đã có hàng, không tự đổi cơ sở để tránh mất dữ liệu. "
-                    f"Cơ sở theo file: {target_name}; đang làm việc: {current[1]}.", "warn")
-                return
+                if kiotviet.get_page_state(driver) == kiotviet.PAGE_EDIT and kiotviet.count_item_rows(driver):
+                    self.log(
+                        f"Phiếu kiểm kho đang mở đã có hàng, không tự đổi cơ sở để tránh mất dữ liệu. "
+                        f"Cơ sở theo file: {target_name}; đang làm việc: {current[1]}.", "warn")
+                    return
 
-            self.log(f"Đang đổi cơ sở: {current[1]} → {target_name}...")
-            kiotviet.change_branch(driver, target_id)
-            self.log(f"Đã đổi cơ sở làm việc sang {target_name}.", "ok")
+                self.log(f"Đang đổi cơ sở: {current[1]} → {target_name}...")
+                kiotviet.change_branch(driver, target_id)
+                self.log(f"Đã đổi cơ sở làm việc sang {target_name}.", "ok")
         except Exception as exc:
             first_line = str(exc).split("\n")[0]
             self.log(f"Không đổi được cơ sở: {first_line or type(exc).__name__}", "error")
