@@ -36,6 +36,7 @@ LOG_COLORS = {
     "warn": "#B45309",
     "error": "#C62828",
 }
+LINK_COLOR = "#1565C0"
 
 
 class App:
@@ -46,6 +47,7 @@ class App:
         self._last_status = None
         self._branches = []
         self._current_title = ""
+        self._link_seq = 0
         self.session = session.DriverSession(
             lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False))
 
@@ -319,10 +321,23 @@ class App:
     def _on_main_thread(self):
         return threading.current_thread() is threading.main_thread()
 
-    def log(self, message, level="info"):
+    def log(self, message, level="info", code=None):
+        """Ghi nhật ký; nếu có `code`, mã hàng trong dòng được gạch chân và bấm được để tìm trên phiếu."""
         def apply():
             self.txt_log.config(state=tk.NORMAL)
+            anchor = self.txt_log.index(tk.END + "-1c")
             self.txt_log.insert(tk.END, message + "\n", level)
+            offset = message.find(code) if code else -1
+            if offset >= 0:
+                self._link_seq += 1
+                tag = f"link{self._link_seq}"
+                start = f"{anchor}+{offset}c"
+                end = f"{start}+{len(code)}c"
+                self.txt_log.tag_add(tag, start, end)
+                self.txt_log.tag_config(tag, foreground=LINK_COLOR, underline=True)
+                self.txt_log.tag_bind(tag, "<Button-1>", lambda event, c=code: self.reveal_code(c))
+                self.txt_log.tag_bind(tag, "<Enter>", lambda event: self.txt_log.config(cursor="hand2"))
+                self.txt_log.tag_bind(tag, "<Leave>", lambda event: self.txt_log.config(cursor=""))
             self.txt_log.see(tk.END)
             self.txt_log.config(state=tk.DISABLED)
 
@@ -397,6 +412,34 @@ class App:
         self.txt_log.mark_set(tk.INSERT, "1.0")
         self.txt_log.see(tk.INSERT)
         return "break"
+
+    # ------------------------------------------------------------------
+    # Tìm mã trên phiếu
+    # ------------------------------------------------------------------
+    def reveal_code(self, code):
+        """Bấm mã hàng trong nhật ký: chuyển phiếu KiotViet tới dòng chứa mã đó."""
+        if self.running:
+            self.log("Tool đang chạy, chờ xong rồi bấm lại mã để tìm trên phiếu.", "warn")
+            return
+        threading.Thread(target=self._reveal_worker, args=(code,), daemon=True).start()
+
+    def _reveal_worker(self, code):
+        try:
+            with self.session.exclusive() as driver:
+                if driver is None:
+                    self.log(f"Chưa kết nối được Chrome Debug nên chưa tìm được mã {code}.", "warn")
+                    return
+                kiotviet.bring_to_front(driver)
+                stt = kiotviet.reveal_item(driver, code)
+        except Exception as exc:
+            first_line = str(exc).split("\n")[0]
+            self.log(f"Không tìm được mã {code}: {first_line or type(exc).__name__}", "error")
+            return
+
+        if stt:
+            self.log(f"Đã chuyển tới mã {code} (STT {stt} trên KiotViet).", "ok")
+        else:
+            self.log(f"Không thấy mã {code} trên phiếu đang mở.", "warn")
 
     # ------------------------------------------------------------------
     # Cấu hình
@@ -837,8 +880,8 @@ class App:
             return False
 
         report = verify.compare_adjustments(filled_items, web_rows)
-        for level, text in verify.describe_report(report, kiotviet.format_qty):
-            self.log(text, level)
+        for level, text, code in verify.describe_report(report, kiotviet.format_qty):
+            self.log(text, level, code)
         return report.ok
 
     def _fill_note(self, driver):

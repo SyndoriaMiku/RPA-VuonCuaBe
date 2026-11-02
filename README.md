@@ -41,6 +41,8 @@ Giao diện chia thành 3 bước:
 
 Nhật ký có màu: xanh là thành công, cam là bỏ qua/cảnh báo, đỏ là lỗi hoặc cần kiểm tra. Có nút **Sao chép tất cả** và **Xóa**. Cuối mỗi lần chạy có thống kê thành công / bỏ qua / lỗi.
 
+Mã hàng trong các dòng `BỎ QUA`, `CẦN KIỂM TRA`, `LỖI Web` và `SAI LỆCH` được gạch chân màu xanh. **Bấm vào mã** để Tool mở Chrome, chuyển phiếu kiểm kho tới đúng trang chứa mã đó, cuộn tới và tô sáng dòng trong vài giây. Không tìm thấy thì bảng được trả về trang ban đầu và nhật ký báo `Không thấy mã ... trên phiếu đang mở`. Tool không nhảy trang khi đang chạy; hãy chờ chạy xong rồi bấm lại.
+
 Khi lần chạy kết thúc (hoàn tất, dừng hoặc lỗi kết nối), Tool phát âm thanh hệ thống của Windows và nhấp nháy biểu tượng trên taskbar cho đến khi bạn mở lại cửa sổ: âm "OK" khi mọi mã đều thành công, âm cảnh báo khi có mã bỏ qua/sai lệch/lỗi. Có thể tắt hai thông báo này trong **Cài đặt**.
 
 Các thiết lập (file, sheet, ô bắt đầu, thời gian chờ, đường dẫn Chrome) được lưu vào `config.json` cạnh `AutoApp.exe` và tự nạp lại lần sau. Các thiết lập còn lại sửa trong **⚙ Cài đặt** (xem bên dưới).
@@ -132,7 +134,7 @@ Số phiên bản nằm trong `version.py`:
 - `app.py`: điểm khởi chạy.
 - `gui.py`: giao diện Tkinter, xử lý luồng và lưu cấu hình.
 - `automation.py`: vòng lặp xử lý từng mã hàng, thống kê kết quả, xử lý dừng.
-- `kiotviet.py`: thao tác Selenium với KiotViet (nhận diện trang, đổi cơ sở, tạo phiếu, tìm, điền, xác minh).
+- `kiotviet.py`: thao tác Selenium với KiotViet (nhận diện trang, đổi cơ sở, tạo phiếu, tìm, điền, xác minh, chuyển tới mã trong nhật ký).
 - `verify.py`: so SL lệch trên phiếu với số lượng trong Excel cho các mã đã điền.
 - `branch_match.py`: khớp tiêu đề file với cơ sở trên web (theo số CS hoặc địa điểm, không phân biệt dấu).
 - `excel_reader.py`: đọc Excel, phân tích ô bắt đầu, kiểm tra mã trùng/số lượng.

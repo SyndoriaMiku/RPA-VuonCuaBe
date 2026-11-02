@@ -47,9 +47,9 @@ def test_describe_report():
         [web("12", "A", 2), web("13", "OK", 2)],
     )
     lines = verify.describe_report(report)
-    assert lines[0] == ("error", "SAI LỆCH: Mã A (STT 12 trên KiotViet) - SL lệch trên web 2, Excel 1")
-    assert lines[1] == ("error", "SAI LỆCH: Mã MISS (dòng 7 Excel) đã điền nhưng không thấy trên phiếu - Excel 3")
-    assert lines[-1] == ("error", "Khớp 1/3 mã đã điền | Sai lệch: 2")
+    assert lines[0] == ("error", "SAI LỆCH: Mã A (STT 12 trên KiotViet) - SL lệch trên web 2, Excel 1", "A")
+    assert lines[1] == ("error", "SAI LỆCH: Mã MISS (dòng 7 Excel) đã điền nhưng không thấy trên phiếu - Excel 3", "MISS")
+    assert lines[-1] == ("error", "Khớp 1/3 mã đã điền | Sai lệch: 2", None)
 
     ok_lines = verify.describe_report(verify.compare_adjustments([item("A", 1, 4)], [web("1", "A", 1)]))
-    assert ok_lines == [("ok", "Tất cả 1 mã đã điền đều khớp SL lệch với Excel.")]
+    assert ok_lines == [("ok", "Tất cả 1 mã đã điền đều khớp SL lệch với Excel.", None)]

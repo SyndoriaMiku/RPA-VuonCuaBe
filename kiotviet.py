@@ -488,6 +488,72 @@ def read_stocktake_rows(driver, timeout=10):
     return rows
 
 
+_HIGHLIGHT_JS = _GRID_LIB_JS + """
+var code = String(arguments[0]).trim().toLowerCase();
+var rows = kvItemRows();
+for (var i = 0; i < rows.length; i++) {
+    if (kvText(rows[i], 'ProductCode').trim().toLowerCase() === code) {
+        var row = rows[i];
+        row.scrollIntoView({block: 'center'});
+        row.style.outline = '3px solid #F9A825';
+        row.style.backgroundColor = '#FFF59D';
+        setTimeout(function () {
+            row.style.outline = '';
+            row.style.backgroundColor = '';
+        }, 3000);
+        return true;
+    }
+}
+return false;
+"""
+
+
+def _wait_page_rows(driver, page, expected, previous, timeout):
+    driver.execute_script(_ITEM_GRID_JS + "grid.dataSource.page(arguments[0]);", page)
+
+    def ready(d):
+        visible = _read_visible_rows(d)
+        if len(visible) != expected:
+            return False
+        if previous is not None and visible == previous:  # bảng chưa chuyển sang trang mới
+            return False
+        return visible
+
+    return WebDriverWait(driver, timeout, poll_frequency=0.2).until(ready)
+
+
+def reveal_item(driver, code, timeout=10):
+    """Chuyển phiếu KiotViet tới trang chứa mã, cuộn tới và tô sáng dòng đó.
+
+    Trả về STT trên phiếu, hoặc None nếu không thấy mã. Không tìm thấy thì trả bảng về
+    trang ban đầu; tìm thấy thì để nguyên trang chứa mã cho người dùng xem.
+    """
+    state = _grid_state(driver)
+    if not state:
+        raise RuntimeError("Không tìm thấy bảng hàng hóa của phiếu kiểm kho.")
+    if not state["total"]:
+        return None
+
+    original_page = state["page"]
+    page_size = state["pageSize"] or state["total"]
+    previous = None
+    try:
+        for page in range(1, state["totalPages"] + 1):
+            expected = min(page_size, state["total"] - (page - 1) * page_size)
+            visible = _wait_page_rows(driver, page, expected, previous, timeout)
+            previous = visible
+            for row in visible:
+                if code_equals(row["code"], code):
+                    driver.execute_script(_HIGHLIGHT_JS, code)
+                    return row["stt"]
+    except TimeoutException:
+        driver.execute_script(_ITEM_GRID_JS + "grid.dataSource.page(arguments[0]);", original_page)
+        raise RuntimeError("Không chuyển được trang của phiếu kiểm kho để tìm mã.")
+
+    driver.execute_script(_ITEM_GRID_JS + "grid.dataSource.page(arguments[0]);", original_page)
+    return None
+
+
 def merge_note(current, note_text):
     """Ghép ghi chú mới vào nội dung sẵn có; trả về None nếu đã có đúng nội dung đó."""
     current = (current or "").strip()

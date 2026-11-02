@@ -23,7 +23,7 @@ def item_label(item, exc=None):
 def run_items(driver, items, result_timeout, stop_event, log, progress, process=None):
     """Xử lý lần lượt từng mã hàng.
 
-    log(message, level) với level: info | ok | warn | error.
+    log(message, level, code=None) với level: info | ok | warn | error.
     progress(done, total) được gọi sau mỗi mã.
     """
     process = process or kiotviet.process_item
@@ -47,14 +47,14 @@ def run_items(driver, items, result_timeout, stop_event, log, progress, process=
             stats.succeeded.append(item)
         except kiotviet.SkipItem as exc:
             stats.skipped += 1
-            log(f"BỎ QUA: {item_label(item, exc)} - {exc}", "warn")
+            log(f"BỎ QUA: {item_label(item, exc)} - {exc}", "warn", code)
         except kiotviet.VerifyError as exc:
             stats.error += 1
-            log(f"CẦN KIỂM TRA: {item_label(item, exc)} - {exc}", "error")
+            log(f"CẦN KIỂM TRA: {item_label(item, exc)} - {exc}", "error", code)
         except Exception as exc:
             stats.error += 1
             first_line = str(exc).split("\n")[0]
-            log(f"LỖI Web: {label}. Chi tiết: {first_line or type(exc).__name__}", "error")
+            log(f"LỖI Web: {label}. Chi tiết: {first_line or type(exc).__name__}", "error", code)
         finally:
             progress(index, total)
 

@@ -224,3 +224,64 @@ def test_read_status_handles_missing_kiotviet_page():
     assert status["page"] == kv.PAGE_OTHER
     assert status["branch"] is None and status["branches"] == []
     assert status["rows"] == 0 and status["draft"] is False
+
+
+class RevealDriver:
+    """Giả lập bảng Kendo: mỗi trang có sẵn danh sách dòng, đổi trang bằng dataSource.page()."""
+
+    def __init__(self, pages, page=1):
+        self.pages = pages
+        self.current_page = page
+        self.highlighted = []
+        self.page_size = len(pages[0])
+
+    def execute_script(self, script, *args):
+        if "totalPages" in script:
+            return {
+                "page": self.current_page,
+                "pageSize": self.page_size,
+                "totalPages": len(self.pages),
+                "total": self.page_size * len(self.pages),
+            }
+        if "dataSource.page(arguments[0])" in script:
+            self.current_page = int(args[0])
+            return None
+        if "kvItemRows().map" in script:
+            return self.pages[self.current_page - 1]
+        if "scrollIntoView" in script:
+            self.highlighted.append(args[0])
+            return True
+        raise AssertionError("unexpected script")
+
+
+def reveal_row(stt, code):
+    return {"stt": stt, "code": code, "adjustment": "-1"}
+
+
+def test_reveal_item_turns_to_the_page_with_the_code():
+    driver = RevealDriver([
+        [reveal_row("2", "A"), reveal_row("1", "B")],
+        [reveal_row("4", "C"), reveal_row("3", "D")],
+    ])
+    assert kv.reveal_item(driver, "c") == "4"
+    assert driver.current_page == 2
+    assert driver.highlighted == ["c"]
+
+
+def test_reveal_item_returns_none_and_restores_page_when_not_found():
+    driver = RevealDriver([
+        [reveal_row("2", "A"), reveal_row("1", "B")],
+        [reveal_row("4", "C"), reveal_row("3", "D")],
+    ])
+    assert kv.reveal_item(driver, "Z") is None
+    assert driver.current_page == 1
+    assert driver.highlighted == []
+
+
+def test_reveal_item_requires_the_item_grid():
+    class NoGrid:
+        def execute_script(self, script, *args):
+            return None
+
+    with pytest.raises(RuntimeError):
+        kv.reveal_item(NoGrid(), "A")

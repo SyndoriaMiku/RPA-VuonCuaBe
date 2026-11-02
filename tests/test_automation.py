@@ -8,7 +8,7 @@ def run(items, process, stop_event=None):
     logs, progress = [], []
     stats = automation.run_items(
         None, items, 1, stop_event or threading.Event(),
-        lambda msg, level: logs.append((level, msg)),
+        lambda msg, level, code=None: logs.append((level, msg, code)),
         lambda done, total: progress.append((done, total)),
         process=process,
     )
@@ -33,7 +33,8 @@ def test_counts_each_outcome_and_continues():
 
     assert (stats.ok, stats.skipped, stats.error, stats.stopped) == (2, 1, 2, False)
     assert progress[-1] == (5, 5)
-    assert [level for level, _ in logs] == ["warn", "error", "error"]
+    assert [level for level, _, _ in logs] == ["warn", "error", "error"]
+    assert [code for _, _, code in logs] == ["SKIP", "BAD", "BOOM"]
     assert "dòng 7" in logs[-1][1] and "chi tiết thêm" not in logs[-1][1]
 
 
