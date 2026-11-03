@@ -487,18 +487,23 @@ class App:
             self.config["chrome_path"] = chrome_path
             self._refresh_chrome_status()
 
-        self.session.close()
-        subprocess.run(["taskkill", "/f", "/im", "chromedriver.exe"], capture_output=True)
+        # Ngắt phiên cũ và mở Chrome có thể chờ chromedriver vài chục giây; chạy nền để cửa sổ
+        # Tool không bị treo.
+        threading.Thread(target=self._open_chrome_worker, args=(chrome_path,), daemon=True).start()
 
+    def _open_chrome_worker(self, chrome_path):
         port = self.config["debug_port"]
         try:
+            # Dừng chromedriver trước: driver.quit() sẽ không phải chờ driver tự thoát (tối đa 30 giây)
+            subprocess.run(["taskkill", "/f", "/im", "chromedriver.exe"], capture_output=True)
+            self.session.close()
             subprocess.Popen([
                 chrome_path,
                 f"--remote-debugging-port={port}",
                 f"--user-data-dir={self.config['user_data_dir']}",
             ])
         except OSError as exc:
-            messagebox.showerror("Lỗi", f"Không thể mở Chrome Debug:\n{exc}")
+            self.notify("showerror", "Lỗi", f"Không thể mở Chrome Debug:\n{exc}")
             return
         self.log(f"Đã mở Chrome Debug (cổng {port}).", "ok")
         self.monitor.refresh()
