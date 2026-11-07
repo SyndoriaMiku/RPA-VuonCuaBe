@@ -1,5 +1,6 @@
 import socket
 import threading
+import time
 
 import session
 
@@ -131,3 +132,47 @@ def test_broken_driver_is_replaced_when_prepare_fails():
     second = shared.get()
     assert first.name == 0 and first.quit_called
     assert second.name == 1 and len(created) == 2
+
+
+class FakeProcess:
+    def __init__(self):
+        self.killed = False
+
+    def kill(self):
+        self.killed = True
+
+
+class FakeService:
+    def __init__(self):
+        self.process = FakeProcess()
+
+
+def test_terminate_kills_chromedriver_without_waiting_for_the_lock():
+    driver = FakeDriver("d")
+    driver.service = FakeService()
+    shared = session.DriverSession(lambda: driver)
+    shared.get()
+
+    held = threading.Event()
+    release = threading.Event()
+
+    def busy_run():
+        with shared._lock:  # giả lập lần chạy đang giữ phiên
+            held.set()
+            release.wait(5)
+
+    worker = threading.Thread(target=busy_run, daemon=True)
+    worker.start()
+    held.wait()
+    started = time.monotonic()
+    shared.terminate()
+    elapsed = time.monotonic() - started
+    release.set()
+
+    assert elapsed < 0.5
+    assert driver.service.process.killed and not driver.quit_called
+    assert shared._driver is None
+
+
+def test_terminate_without_driver_is_harmless():
+    session.DriverSession(lambda: None).terminate()

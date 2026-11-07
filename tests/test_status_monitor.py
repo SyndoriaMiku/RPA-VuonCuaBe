@@ -112,3 +112,24 @@ def test_monitor_stops():
     monitor.start()
     monitor.stop()
     assert monitor._thread is None
+
+
+def test_stop_without_wait_returns_even_if_a_check_is_stuck():
+    import threading as _threading
+    import time as _time
+
+    stuck = _threading.Event()
+
+    class StuckSession:
+        @contextmanager
+        def exclusive(self, blocking=True):
+            stuck.set()
+            _time.sleep(5)  # lệnh Selenium bị kẹt
+            yield None
+
+    monitor = status_monitor.StatusMonitor(StuckSession(), lambda status: None, interval=60)
+    monitor.start()
+    stuck.wait(2)
+    started = _time.monotonic()
+    monitor.stop(wait=False)
+    assert _time.monotonic() - started < 0.5

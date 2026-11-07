@@ -310,18 +310,20 @@ class App:
         self._save_config()
 
         dialog = settings_dialog.SettingsDialog(self.root, self.config)
-        self.wait_window(dialog)
+        self.root.wait_window(dialog)
         if dialog.result is None:
             return
 
         old_port = self.config.get("debug_port")
         self.config.update(dialog.result)
-        self._save_config()
+        # Cập nhật ô trên màn hình chính trước: _save_config() đọc giá trị từ ô này
         self.combo_wait.set(str(self.config["wait_seconds"]))
+        self._save_config()
         self._refresh_chrome_status()
         self.monitor.set_interval(self.config["status_interval"])
         if str(old_port) != str(self.config["debug_port"]):
-            self.session.close()
+            # Ngắt phiên cũ phải chờ lock và chromedriver: chạy nền để cửa sổ không bị treo
+            threading.Thread(target=self.session.close, daemon=True).start()
             self.log("Đã đổi cổng debug; lần kết nối Chrome tiếp theo sẽ dùng cổng mới.", "warn")
         self.log("Đã lưu cài đặt.", "ok")
         self.monitor.refresh()
@@ -469,9 +471,15 @@ class App:
             pass  # Không lưu được cấu hình (ví dụ thư mục chỉ đọc) không được làm gián đoạn công việc
 
     def _on_close(self):
+        # Không được chờ gì ở đây: lần chạy/thanh trạng thái có thể đang giữ phiên Selenium
+        # rất lâu, chờ lock hay driver.quit() sẽ làm cửa sổ "Not Responding".
+        if self.running and not messagebox.askyesno(
+                "Tool đang chạy", "Tool đang chạy. Dừng lại và thoát?", icon="warning"):
+            return
+        self.stop_event.set()
         self._save_config()
-        self.monitor.stop()
-        self.session.close()
+        self.monitor.stop(wait=False)
+        self.session.terminate()
         self.root.destroy()
 
     # ------------------------------------------------------------------

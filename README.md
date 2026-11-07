@@ -1,6 +1,6 @@
 # RPA Vườn Của Bé — Auto Robot KiotViet
 
-[![Phiên bản](https://img.shields.io/badge/phi%C3%AAn%20b%E1%BA%A3n-1.4.4-brightgreen)](#phiên-bản)
+[![Phiên bản](https://img.shields.io/badge/phi%C3%AAn%20b%E1%BA%A3n-1.4.5-brightgreen)](#phiên-bản)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Nền tảng](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-Windows-0078d6)](#yêu-cầu)
 [![Giấy phép](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-GPL--3.0-orange)](LICENSE)
@@ -162,7 +162,7 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 
 Số phiên bản nằm trong `version.py`:
 
-- Tiêu đề cửa sổ hiển thị `Auto Robot v1.4.4` khi chạy từ mã nguồn, và `Auto Robot v1.4.4 (<mã commit> <ngày build>)` với bản `.exe`.
+- Tiêu đề cửa sổ hiển thị `Auto Robot v1.4.5` khi chạy từ mã nguồn, và `Auto Robot v1.4.5 (<mã commit> <ngày build>)` với bản `.exe`.
 - Góc dưới bên phải cửa sổ và dòng đầu nhật ký luôn hiển thị phiên bản đang chạy, thuận tiện khi báo lỗi.
 - Quy ước tăng số: thay đổi nhỏ/sửa lỗi tăng số cuối (`1.4.3` → `1.4.4`), thêm tính năng lớn tăng số giữa (`1.4.4` → `1.5.0`).
 

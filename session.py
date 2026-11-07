@@ -46,6 +46,21 @@ class DriverSession:
     def close(self):
         self.invalidate()
 
+    def terminate(self):
+        """Tắt ngay tiến trình chromedriver mà không chờ lock hay chờ driver.quit().
+
+        Dùng khi thoát app: lock có thể đang bị lần chạy hoặc thanh trạng thái giữ, và
+        driver.quit() có thể chờ vài giây; cả hai đều làm cửa sổ "Not Responding". Driver chỉ
+        gắn vào Chrome qua debuggerAddress nên tắt chromedriver không ảnh hưởng Chrome.
+        """
+        driver, self._driver = self._driver, None
+        process = getattr(getattr(driver, "service", None), "process", None)
+        if process is not None:
+            try:
+                process.kill()
+            except Exception:
+                pass
+
     def _ensure_driver(self):
         if self._driver is not None and self._prepare is not None:
             try:

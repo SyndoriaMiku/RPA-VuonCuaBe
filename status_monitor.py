@@ -58,11 +58,15 @@ class StatusMonitor:
         self._thread = threading.Thread(target=self._run, name="status-monitor", daemon=True)
         self._thread.start()
 
-    def stop(self):
+    def stop(self, wait=True):
+        """Dừng luồng nền. wait=False khi gọi từ luồng giao diện (lúc thoát app): luồng có thể
+        đang kẹt trong một lệnh Selenium, chờ nó sẽ làm cửa sổ treo; luồng là daemon nên tự kết
+        thúc cùng app."""
         self._stop.set()
         self._wake.set()
         if self._thread is not None:
-            self._thread.join(timeout=2)
+            if wait:
+                self._thread.join(timeout=2)
             self._thread = None
 
     def refresh(self):
