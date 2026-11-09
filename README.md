@@ -1,6 +1,6 @@
 # RPA Vườn Của Bé — Auto Robot KiotViet
 
-[![Phiên bản](https://img.shields.io/badge/phi%C3%AAn%20b%E1%BA%A3n-1.4.5-brightgreen)](#phiên-bản)
+[![Phiên bản](https://img.shields.io/badge/phi%C3%AAn%20b%E1%BA%A3n-1.5.0-brightgreen)](#phiên-bản)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Nền tảng](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-Windows-0078d6)](#yêu-cầu)
 [![Giấy phép](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-GPL--3.0-orange)](LICENSE)
@@ -82,6 +82,7 @@ Chọn file `.xlsx`, tên sheet và ô bắt đầu. Dòng gợi ý bên cạnh 
 - Nhật ký có màu: xanh là thành công, cam là bỏ qua/cảnh báo, đỏ là lỗi hoặc cần kiểm tra. Có nút **Sao chép tất cả** và **Xóa**. Cuối mỗi lần chạy có thống kê thành công / bỏ qua / lỗi.
 - Mã hàng trong các dòng `BỎ QUA`, `CẦN KIỂM TRA`, `LỖI Web`, `Lệch` và `Thiếu` được gạch chân màu xanh. **Bấm vào mã** để Tool mở Chrome, chuyển phiếu kiểm kho tới đúng trang chứa mã đó, cuộn tới và tô sáng dòng trong vài giây. Không tìm thấy thì bảng được trả về trang ban đầu và nhật ký báo `Không thấy mã ... trên phiếu đang mở`. Tool không nhảy trang khi đang chạy; hãy chờ chạy xong rồi bấm lại.
 - Khi lần chạy kết thúc (hoàn tất, dừng hoặc lỗi kết nối), Tool phát âm thanh hệ thống của Windows và nhấp nháy biểu tượng trên taskbar cho đến khi bạn mở lại cửa sổ: âm "OK" khi mọi mã đều thành công, âm cảnh báo khi có mã bỏ qua/sai lệch/lỗi. Có thể tắt hai thông báo này trong **Cài đặt**.
+- Mỗi lần mở Tool ghi nhật ký ra file trong thư mục `logs` cạnh `AutoApp.exe` (tên `AutoRobot_<ngày>_<giờ>.log`, mỗi dòng kèm giờ). Tool tự xóa các file log cũ hơn số ngày giữ, mặc định 7 ngày (đổi trong **Cài đặt**). Khi báo lỗi, gửi kèm file log của lần chạy đó. Nút **Xóa** chỉ xóa phần đang hiện trên màn hình, không xóa file log.
 - Các thiết lập (file, sheet, ô bắt đầu, thời gian chờ, đường dẫn Chrome) được lưu vào `config.json` cạnh `AutoApp.exe` và tự nạp lại lần sau. Các thiết lập còn lại sửa trong **⚙ Cài đặt** (xem bên dưới).
 
 ## Thanh trạng thái
@@ -115,6 +116,7 @@ Bấm **⚙ Cài đặt** ở góc trên bên phải cửa sổ để sửa các
 | Chạy | Chờ kết quả tối đa (1–60 giây), nội dung ghi chú sau khi chạy (tối đa 2000 ký tự) | `wait_seconds`, `note_text` |
 | Thông báo | Âm thanh khi xong, nhấp nháy taskbar | `notify_sound`, `notify_flash` |
 | Trạng thái | Tần suất cập nhật thanh trạng thái (3–60 giây) | `status_interval` |
+| Nhật ký | Số ngày giữ file log trong `logs` cạnh `AutoApp.exe` (1–365 ngày) | `log_retention_days` |
 
 Lỗi hợp lệ hiện ngay cạnh ô nhập; không lưu được khi còn lỗi. Nút **Khôi phục mặc định** đưa các ô về giá trị gốc (chưa lưu cho đến khi bấm **Lưu**). Không mở được Cài đặt khi Tool đang chạy.
 
@@ -162,9 +164,9 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 
 Số phiên bản nằm trong `version.py`:
 
-- Tiêu đề cửa sổ hiển thị `Auto Robot v1.4.5` khi chạy từ mã nguồn, và `Auto Robot v1.4.5 (<mã commit> <ngày build>)` với bản `.exe`.
+- Tiêu đề cửa sổ hiển thị `Auto Robot v1.5.0` khi chạy từ mã nguồn, và `Auto Robot v1.5.0 (<mã commit> <ngày build>)` với bản `.exe`.
 - Góc dưới bên phải cửa sổ và dòng đầu nhật ký luôn hiển thị phiên bản đang chạy, thuận tiện khi báo lỗi.
-- Quy ước tăng số: thay đổi nhỏ/sửa lỗi tăng số cuối (`1.4.3` → `1.4.4`), thêm tính năng lớn tăng số giữa (`1.4.4` → `1.5.0`).
+- Quy ước tăng số: thay đổi nhỏ/sửa lỗi tăng số cuối (`1.4.4` → `1.4.5`), thêm tính năng lớn tăng số giữa (`1.4.5` → `1.5.0`).
 
 ## Cấu trúc dự án
 
@@ -181,6 +183,7 @@ Số phiên bản nằm trong `version.py`:
 - `notifier.py`: âm thanh hệ thống và nhấp nháy taskbar khi chạy xong.
 - `session.py`: giữ một phiên Selenium dùng chung, khóa để các luồng không chồng lệnh.
 - `status_monitor.py`: đọc trạng thái KiotViet định kỳ và chuyển thành chữ/màu cho thanh trạng thái.
+- `log_file.py`: ghi nhật ký ra file trong `logs/` cạnh `AutoApp.exe` và tự xóa log cũ hơn số ngày giữ.
 - `tests/`: test `pytest` cho các module trên (không cần Chrome hay KiotViet).
 - `AutoApp.spec`: cấu hình đóng gói bằng PyInstaller, bao gồm các DLL Tcl/Tk cần thiết từ môi trường Conda.
 - `build.ps1`: script test và build.
