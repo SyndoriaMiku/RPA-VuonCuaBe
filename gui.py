@@ -10,6 +10,7 @@ import branch_match
 import config as app_config
 import excel_reader
 import kiotviet
+import log_file
 import notifier
 import session
 import settings_dialog
@@ -42,6 +43,8 @@ LINK_COLOR = "#1565C0"
 class App:
     def __init__(self):
         self.config = app_config.load_config()
+        # File log của lần mở Tool này; tự dọn log cũ hơn số ngày giữ
+        self.file_log = log_file.open_session(app_config.APP_DIR, self.config["log_retention_days"])
         self.stop_event = threading.Event()
         self.running = False
         self._last_status = None
@@ -321,6 +324,7 @@ class App:
         self._save_config()
         self._refresh_chrome_status()
         self.monitor.set_interval(self.config["status_interval"])
+        log_file.purge_old(log_file.log_dir(app_config.APP_DIR), self.config["log_retention_days"])
         if str(old_port) != str(self.config["debug_port"]):
             # Ngắt phiên cũ phải chờ lock và chromedriver: chạy nền để cửa sổ không bị treo
             threading.Thread(target=self.session.close, daemon=True).start()
@@ -335,7 +339,12 @@ class App:
         return threading.current_thread() is threading.main_thread()
 
     def log(self, message, level="info", code=None):
-        """Ghi nhật ký; nếu có `code`, mã hàng trong dòng được gạch chân và bấm được để tìm trên phiếu."""
+        """Ghi nhật ký ra màn hình và file log.
+
+        Nếu có `code`, mã hàng trong dòng được gạch chân và bấm được để tìm trên phiếu.
+        """
+        self.file_log.write(message)
+
         def apply():
             self.txt_log.config(state=tk.NORMAL)
             anchor = self.txt_log.index(tk.END + "-1c")
@@ -479,6 +488,7 @@ class App:
         self.stop_event.set()
         self._save_config()
         self.monitor.stop(wait=False)
+        self.file_log.close()
         self.session.terminate()
         self.root.destroy()
 

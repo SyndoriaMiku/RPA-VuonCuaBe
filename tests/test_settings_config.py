@@ -7,6 +7,7 @@ def test_new_settings_have_defaults():
     assert config.DEFAULTS["notify_sound"] is True
     assert config.DEFAULTS["notify_flash"] is True
     assert config.DEFAULTS["status_interval"] == 5
+    assert config.DEFAULTS["log_retention_days"] == 7
     assert config.DEFAULTS["branch_overrides"] == {}
 
 
@@ -102,3 +103,18 @@ def test_validate_config_checks_status_interval():
         cfg = valid_config()
         cfg["status_interval"] = value
         assert "status_interval" in config.validate_config(cfg)
+
+
+def test_validate_config_checks_log_retention_days():
+    for value in ("0", "366", "lâu", None):
+        cfg = valid_config()
+        cfg["log_retention_days"] = value
+        assert "log_retention_days" in config.validate_config(cfg)
+
+
+def test_validate_config_accepts_log_retention_as_number_or_string():
+    cfg = valid_config()
+    cfg["log_retention_days"] = "14"
+    assert "log_retention_days" not in config.validate_config(cfg)
+    cfg["log_retention_days"] = 1
+    assert "log_retention_days" not in config.validate_config(cfg)

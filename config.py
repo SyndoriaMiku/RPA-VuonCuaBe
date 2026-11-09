@@ -20,6 +20,7 @@ DEFAULTS = {
     "notify_sound": True,
     "notify_flash": True,
     "status_interval": 5,
+    "log_retention_days": 7,
     "branch_overrides": {},
 }
 
@@ -89,6 +90,10 @@ def validate_config(cfg):
     interval = _as_int(cfg.get("status_interval"))
     if interval is None or not 3 <= interval <= 60:
         errors["status_interval"] = "Tần suất cập nhật phải từ 3 đến 60 giây."
+
+    retention = _as_int(cfg.get("log_retention_days"))
+    if retention is None or not 1 <= retention <= 365:
+        errors["log_retention_days"] = "Số ngày giữ nhật ký phải từ 1 đến 365."
 
     return errors
 

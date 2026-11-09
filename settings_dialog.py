@@ -39,6 +39,7 @@ class SettingsDialog(tk.Toplevel):
         self.var_sound = tk.BooleanVar()
         self.var_flash = tk.BooleanVar()
         self.var_interval = tk.StringVar()
+        self.var_retention = tk.StringVar()
         self._errors = {}
 
         row = 0
@@ -63,6 +64,8 @@ class SettingsDialog(tk.Toplevel):
         self._field(body, row, "Ghi chú sau khi chạy", self.var_note, "note_text", width=48)
         row += 1
         self._field(body, row, "Cập nhật trạng thái mỗi (giây)", self.var_interval, "status_interval", width=10)
+        row += 1
+        self._field(body, row, "Giữ nhật ký (ngày)", self.var_retention, "log_retention_days", width=10)
         row += 1
 
         ttk.Label(body, text="Thông báo khi xong").grid(row=row, column=0, sticky="nw", pady=(8, 2))
@@ -101,6 +104,7 @@ class SettingsDialog(tk.Toplevel):
         self.var_sound.set(bool(cfg.get("notify_sound", True)))
         self.var_flash.set(bool(cfg.get("notify_flash", True)))
         self.var_interval.set(str(cfg.get("status_interval", "")))
+        self.var_retention.set(str(cfg.get("log_retention_days", "")))
         self._show_errors({})
 
     def _collect(self):
@@ -113,6 +117,7 @@ class SettingsDialog(tk.Toplevel):
             "notify_sound": bool(self.var_sound.get()),
             "notify_flash": bool(self.var_flash.get()),
             "status_interval": self.var_interval.get().strip(),
+            "log_retention_days": self.var_retention.get().strip(),
         }
 
     def _show_errors(self, errors):
@@ -128,6 +133,7 @@ class SettingsDialog(tk.Toplevel):
 
         values["debug_port"] = int(values["debug_port"])
         values["status_interval"] = int(values["status_interval"])
+        values["log_retention_days"] = int(values["log_retention_days"])
         values["wait_seconds"] = str(float(values["wait_seconds"]))
         self.result = values
         self.destroy()
