@@ -214,3 +214,6 @@ config.json
 # File kế hoạch (plan) chỉ dùng cục bộ, không đưa lên repo
 docs/plan*.md
 /plan*.md
+
+# Mockup tam cua phien brainstorming
+.superpowers/
