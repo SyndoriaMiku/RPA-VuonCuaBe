@@ -282,21 +282,32 @@ class App:
         self.combo_wait.set(str(self.config["wait_seconds"]))
         self.combo_wait.grid(row=1, column=1, sticky="w", padx=8)
 
-        buttons = ttk.Frame(card3, style="Card.TFrame")
+        buttons = ctk.CTkFrame(card3, fg_color="transparent")
         buttons.grid(row=2, column=0, columnspan=4, sticky="w", pady=(8, 4))
-        self.btn_check = ttk.Button(buttons, text="Kiểm tra file", command=self.check_file)
+        self.btn_check = ctk.CTkButton(
+            buttons, text="Kiểm tra file", command=self.check_file, fg_color=C["surface_alt"],
+            hover_color=C["hover"], text_color=C["text"], corner_radius=8,
+            border_width=1, border_color=C["border"])
         self.btn_check.pack(side=tk.LEFT, padx=(0, 10))
-        self.btn_run = ttk.Button(buttons, text="▶  CHẠY TỰ ĐỘNG", style="Primary.TButton", command=self.start_run)
+        self.btn_run = ctk.CTkButton(
+            buttons, text="▶  CHẠY TỰ ĐỘNG", command=self.start_run, fg_color=C["accent"],
+            hover_color=C["accent_hover"], text_color=C["on_accent"], font=(FONT, 11, "bold"),
+            corner_radius=8)
         self.btn_run.pack(side=tk.LEFT, padx=(0, 10))
-        self.btn_stop = ttk.Button(buttons, text="■  DỪNG", style="Danger.TButton", command=self.request_stop,
-                                   state=tk.DISABLED)
+        self.btn_stop = ctk.CTkButton(
+            buttons, text="■  DỪNG", command=self.request_stop, fg_color=C["error"],
+            hover_color=C["bad_hover"], text_color=C["on_accent"], font=(FONT, 11, "bold"),
+            corner_radius=8, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT)
 
-        progress_row = ttk.Frame(card3, style="Card.TFrame")
+        progress_row = ctk.CTkFrame(card3, fg_color="transparent")
         progress_row.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(8, 0))
-        self.progress_bar = ttk.Progressbar(progress_row, mode="determinate")
+        self.progress_bar = ctk.CTkProgressBar(progress_row, progress_color=C["accent"],
+                                               fg_color=C["surface_alt"], corner_radius=6)
         self.progress_bar.pack(side=tk.LEFT, fill=tk.X, expand=True)
-        self.lbl_progress = ttk.Label(progress_row, text="", style="Card.TLabel", width=10, anchor="e")
+        self.progress_bar.set(0)
+        self.lbl_progress = ctk.CTkLabel(progress_row, text="", text_color=C["text"], width=70,
+                                         anchor="e", fg_color="transparent")
         self.lbl_progress.pack(side=tk.LEFT, padx=(8, 0))
 
         # Nhật ký
@@ -439,8 +450,8 @@ class App:
 
     def update_progress(self, done, total):
         def apply():
-            self.progress_bar.config(maximum=max(total, 1), value=done)
-            self.lbl_progress.config(text=f"{done}/{total}" if total else "")
+            self.progress_bar.set(done / total if total else 0)
+            self.lbl_progress.configure(text=f"{done}/{total}" if total else "")
 
         if self._on_main_thread():
             apply()
@@ -449,12 +460,12 @@ class App:
 
     def _set_running(self, running, can_stop=True):
         self.running = running
-        self.btn_run.config(state=tk.DISABLED if running else tk.NORMAL)
-        self.btn_check.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_run.configure(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_check.configure(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_settings.configure(state=tk.DISABLED if running else tk.NORMAL)
-        self.btn_change_branch.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_change_branch.configure(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_show_chrome.configure(state=tk.DISABLED if running else tk.NORMAL)
-        self.btn_stop.config(state=tk.NORMAL if running and can_stop else tk.DISABLED)
+        self.btn_stop.configure(state=tk.NORMAL if running and can_stop else tk.DISABLED)
         if running:
             self._apply_status(None, running=True)
         else:
@@ -729,7 +740,7 @@ class App:
 
     def request_stop(self):
         self.stop_event.set()
-        self.btn_stop.config(state=tk.DISABLED)
+        self.btn_stop.configure(state=tk.DISABLED)
         self.log("Đã nhận yêu cầu dừng, Tool sẽ dừng sau khi xong mã hàng hiện tại...", "warn")
 
     def _worker(self, items, start_cell, quantity_column, result_timeout, title):

@@ -21,6 +21,7 @@ PALETTE = {
     "ok": "#43C77E",
     "warn": "#E3B341",
     "error": "#F0666C",
+    "bad_hover": "#F58A80",
     "link": "#7CB6FF",
 }
 
