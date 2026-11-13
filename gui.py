@@ -1,9 +1,12 @@
+import ctypes
 import os
 import subprocess
 import threading
 import tkinter as tk
 import tkinter.scrolledtext as scrolledtext
 from tkinter import filedialog, messagebox, ttk
+
+import customtkinter as ctk
 
 import automation
 import branch_match
@@ -15,10 +18,13 @@ import notifier
 import session
 import settings_dialog
 import status_monitor
+import ui_theme
 import verify
 import version
 
-FONT = "Segoe UI"
+FONT = ui_theme.FONT
+RADIUS = ui_theme.RADIUS
+C = ui_theme.PALETTE
 COLORS = {
     "bg": "#F3F5F7",
     "card": "#FFFFFF",
@@ -40,6 +46,13 @@ LOG_COLORS = {
 LINK_COLOR = "#1565C0"
 
 
+def _dwm_set_dark(hwnd, attribute, value):
+    """Làm tối thanh tiêu đề Windows; máy không hỗ trợ sẽ ném lỗi để bỏ qua êm."""
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(
+        ctypes.c_void_p(hwnd), ctypes.c_uint(attribute),
+        ctypes.byref(ctypes.c_int(value)), ctypes.sizeof(ctypes.c_int))
+
+
 class App:
     def __init__(self):
         self.config = app_config.load_config()
@@ -55,11 +68,17 @@ class App:
             lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False),
             prepare=kiotviet.select_kiotviet_tab)
 
-        self.root = tk.Tk()
+        # Giao diện tối: khoá thang đo để giữ đúng bố cục pixel hiện có.
+        # Tắt tự-scaling DPI của CTk, nếu không nó tự đổi kích thước cửa sổ sau khi khởi động.
+        ctk.deactivate_automatic_dpi_awareness()
+        ctk.set_appearance_mode("dark")
+        self.root = ctk.CTk()
         self.root.title(version.window_title())
-        self.root.geometry("920x740")
-        self.root.minsize(780, 620)
-        self.root.configure(bg=COLORS["bg"])
+        # Đặt kích thước qua wm_* của Tk: lớp override geometry/minsize của CTk bị nhiễu
+        # bởi sự kiện <Configure> của widget con nên tự đổi lại kích thước cửa sổ.
+        self.root.wm_geometry("920x740")
+        self.root.wm_minsize(780, 620)
+        self.root.configure(fg_color=C["bg"])
         self._setup_style()
         self._build_ui()
         self._center_window()
@@ -75,6 +94,7 @@ class App:
         )
         self.monitor.start()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
+        self._enable_dark_title_bar()
 
         # File đã dùng lần trước: load lại để hiện tiêu đề và tự đổi cơ sở như khi vừa chọn file
         remembered_file = self.config["file_path"]
@@ -120,6 +140,15 @@ class App:
         style.configure("Horizontal.TProgressbar", troughcolor="#E1E5E9", background=COLORS["primary"],
                         bordercolor=COLORS["border"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
 
+    def _enable_dark_title_bar(self):
+        """Làm tối thanh tiêu đề Windows; máy không hỗ trợ thì bỏ qua êm."""
+        try:
+            hwnd = ctypes.windll.user32.GetParent(self.root.winfo_id()) or self.root.winfo_id()
+            ui_theme.enable_dark_title_bar(
+                hwnd, lambda attribute, value: _dwm_set_dark(hwnd, attribute, value))
+        except Exception:
+            pass
+
     def _card(self, parent, title, step):
         outer = tk.Frame(parent, bg=COLORS["card"], highlightbackground=COLORS["border"], highlightthickness=1)
         outer.pack(fill=tk.X, pady=(0, 10))
@@ -131,41 +160,50 @@ class App:
         return inner
 
     def _build_ui(self):
-        main = ttk.Frame(self.root, padding=(18, 14))
-        main.pack(fill=tk.BOTH, expand=True)
+        main = ctk.CTkFrame(self.root, fg_color=C["bg"], corner_radius=0)
+        main.pack(fill=tk.BOTH, expand=True, padx=18, pady=14)
 
         # Tiêu đề
-        header = ttk.Frame(main)
+        header = ctk.CTkFrame(main, fg_color="transparent")
         header.pack(fill=tk.X, pady=(0, 12))
-        header_top = ttk.Frame(header)
+        header_top = ctk.CTkFrame(header, fg_color="transparent")
         header_top.pack(fill=tk.X)
-        self.lbl_title = ttk.Label(header_top, text="Auto Robot KiotViet", style="Title.TLabel")
+        self.lbl_title = ctk.CTkLabel(header_top, text="Auto Robot KiotViet", text_color=C["text"],
+                                      font=(FONT, 17, "bold"), fg_color="transparent")
         self.lbl_title.pack(side=tk.LEFT, anchor="w")
-        self.btn_settings = ttk.Button(header_top, text="⚙  Cài đặt", command=self.open_settings)
+        self.btn_settings = ctk.CTkButton(
+            header_top, text="⚙  Cài đặt", command=self.open_settings, fg_color=C["surface_alt"],
+            hover_color=C["hover"], text_color=C["text"], corner_radius=RADIUS,
+            border_width=1, border_color=C["border"])
         self.btn_settings.pack(side=tk.RIGHT, anchor="n")
-        ttk.Label(
-            header, style="Subtitle.TLabel",
-            text="Nhập số lượng cân chỉnh từ Excel vào màn hình kiểm kho KiotViet. Luôn kiểm tra lại trước khi lưu phiếu.",
+        ctk.CTkLabel(
+            header, text="Nhập số lượng cân chỉnh từ Excel vào màn hình kiểm kho KiotViet. "
+                         "Luôn kiểm tra lại trước khi lưu phiếu.",
+            text_color=C["muted"], font=(FONT, 10), fg_color="transparent",
         ).pack(anchor="w")
 
         # Thanh trạng thái KiotViet (chỉ đọc, cập nhật định kỳ)
-        status_bar = tk.Frame(
-            main, bg=COLORS["card"], highlightbackground=COLORS["border"], highlightthickness=1)
+        status_bar = ctk.CTkFrame(main, fg_color=C["surface"], corner_radius=RADIUS,
+                                  border_width=1, border_color=C["border"])
         status_bar.pack(fill=tk.X, pady=(0, 10))
-        status_inner = tk.Frame(status_bar, bg=COLORS["card"])
+        status_inner = ctk.CTkFrame(status_bar, fg_color="transparent")
         status_inner.pack(fill=tk.X, padx=12, pady=6)
-        self.lbl_status_dot = tk.Label(
-            status_inner, text="●", bg=COLORS["card"],
-            fg=status_monitor.CONNECTION_COLORS["disconnected"], font=(FONT, 12))
+        self.lbl_status_dot = ctk.CTkLabel(
+            status_inner, text="●", text_color=status_monitor.CONNECTION_COLORS["disconnected"],
+            font=(FONT, 12), fg_color="transparent")
         self.lbl_status_dot.pack(side=tk.LEFT)
-        self.lbl_status = tk.Label(
-            status_inner, text="Chưa kết nối Chrome Debug", bg=COLORS["card"], fg=COLORS["text"],
-            font=(FONT, 9), anchor="w")
+        self.lbl_status = ctk.CTkLabel(
+            status_inner, text="Chưa kết nối Chrome Debug", text_color=C["text"],
+            font=(FONT, 9), fg_color="transparent", anchor="w")
         self.lbl_status.pack(side=tk.LEFT, padx=(6, 0))
-        self.btn_status_chrome = ttk.Button(
-            status_inner, text="Mở Chrome Debug", command=self.open_chrome_debug, padding=(8, 3))
-        self.btn_show_chrome = ttk.Button(
-            status_inner, text="Hiện Chrome", command=self.show_chrome, padding=(8, 3))
+        self.btn_status_chrome = ctk.CTkButton(
+            status_inner, text="Mở Chrome Debug", command=self.open_chrome_debug,
+            fg_color=C["surface_alt"], hover_color=C["hover"], text_color=C["text"],
+            corner_radius=8, border_width=1, border_color=C["border"], height=28, width=132)
+        self.btn_show_chrome = ctk.CTkButton(
+            status_inner, text="Hiện Chrome", command=self.show_chrome,
+            fg_color=C["surface_alt"], hover_color=C["hover"], text_color=C["text"],
+            corner_radius=8, border_width=1, border_color=C["border"], height=28, width=110)
 
         # Bước 1: Chrome
         card1 = self._card(main, "Mở Chrome Debug", "①")
@@ -260,13 +298,13 @@ class App:
 
     def _center_window(self):
         self.root.update_idletasks()
-        # Cao vừa đủ cho toàn bộ giao diện (gồm ~10 dòng nhật ký), nhưng không vượt quá màn hình
-        width = self.root.winfo_width()
+        # Cao vừa đủ cho toàn bộ giao diện (gồm ~10 dòng nhật ký), nhưng không vượt quá màn hình.
+        # CTk trả winfo_width() mặc định (200) khi cửa sổ chưa hiện, nên lấy theo bề rộng đặt trước.
+        width = max(920, self.root.winfo_reqwidth())
         height = min(max(740, self.root.winfo_reqheight() + 20), self.root.winfo_screenheight() - 80)
-        self.root.geometry(f"{width}x{height}")
         x = (self.root.winfo_screenwidth() - width) // 2
         y = (self.root.winfo_screenheight() - height) // 3
-        self.root.geometry(f"+{max(x, 0)}+{max(y, 0)}")
+        self.root.wm_geometry(f"{width}x{height}+{max(x, 0)}+{max(y, 0)}")
 
     def _refresh_cell_hint(self):
         try:
@@ -292,9 +330,9 @@ class App:
 
     def _apply_status(self, status, running=False):
         view = status_monitor.describe_status(status, running)
-        self.lbl_status.config(text=view["text"])
-        self.lbl_status_dot.config(
-            fg=status_monitor.CONNECTION_COLORS["connected" if view["connected"] else "disconnected"])
+        self.lbl_status.configure(text=view["text"])
+        self.lbl_status_dot.configure(
+            text_color=status_monitor.CONNECTION_COLORS["connected" if view["connected"] else "disconnected"])
         if view["can_open_chrome"]:
             self.btn_show_chrome.pack_forget()
             self.btn_status_chrome.pack(side=tk.RIGHT)
@@ -386,9 +424,9 @@ class App:
         self.running = running
         self.btn_run.config(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_check.config(state=tk.DISABLED if running else tk.NORMAL)
-        self.btn_settings.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_settings.configure(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_change_branch.config(state=tk.DISABLED if running else tk.NORMAL)
-        self.btn_show_chrome.config(state=tk.DISABLED if running else tk.NORMAL)
+        self.btn_show_chrome.configure(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_stop.config(state=tk.NORMAL if running and can_stop else tk.DISABLED)
         if running:
             self._apply_status(None, running=True)
@@ -557,14 +595,14 @@ class App:
             try:
                 sheet = excel_reader.open_sheet(file_path, "")
             except Exception:
-                self.lbl_title.config(text="[Lỗi đọc file Excel]")
+                self.lbl_title.configure(text="[Lỗi đọc file Excel]")
                 self.root.title(version.window_title())
                 messagebox.showerror("Lỗi đọc Excel", "Không thể đọc thông tin từ file Excel đã chọn.")
                 return
 
         c2_value = sheet["C2"].value
         title = str(c2_value) if c2_value else "[Ô C2 trống]"
-        self.lbl_title.config(text=title)
+        self.lbl_title.configure(text=title)
         self.root.title(version.window_title(str(c2_value).strip() if c2_value else ""))
         self._current_title = str(c2_value).strip() if c2_value else ""
         self._update_branches(self._branches)
