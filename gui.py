@@ -4,7 +4,7 @@ import subprocess
 import threading
 import time
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
 
 import customtkinter as ctk
 
@@ -25,18 +25,6 @@ import version
 FONT = ui_theme.FONT
 RADIUS = ui_theme.RADIUS
 C = ui_theme.PALETTE
-COLORS = {
-    "bg": "#F3F5F7",
-    "card": "#FFFFFF",
-    "text": "#1F2933",
-    "muted": "#6B7785",
-    "primary": "#2E7D32",
-    "primary_hover": "#1B5E20",
-    "danger": "#C62828",
-    "danger_hover": "#8E0000",
-    "warn": "#B45309",
-    "border": "#D9DEE3",
-}
 LOG_COLORS = {
     "info": C["text"],
     "ok": C["ok"],
@@ -88,7 +76,6 @@ class App:
         self.root.wm_geometry("920x740")
         self.root.wm_minsize(780, 620)
         self.root.configure(fg_color=C["bg"])
-        self._setup_style()
         self._build_ui()
         self._center_window()
         self._refresh_chrome_status()
@@ -114,42 +101,6 @@ class App:
     # ------------------------------------------------------------------
     # Giao diện
     # ------------------------------------------------------------------
-    def _setup_style(self):
-        style = ttk.Style(self.root)
-        style.theme_use("clam")
-        style.configure(".", font=(FONT, 10), background=COLORS["bg"], foreground=COLORS["text"])
-        style.configure("TFrame", background=COLORS["bg"])
-        style.configure("Card.TFrame", background=COLORS["card"])
-        style.configure("TLabel", background=COLORS["bg"])
-        style.configure("Card.TLabel", background=COLORS["card"])
-        style.configure("Muted.TLabel", background=COLORS["card"], foreground=COLORS["muted"], font=(FONT, 9))
-        style.configure("Title.TLabel", font=(FONT, 17, "bold"), foreground=COLORS["text"])
-        style.configure("Subtitle.TLabel", foreground=COLORS["muted"])
-        style.configure("CardTitle.TLabel", background=COLORS["card"], font=(FONT, 11, "bold"))
-        style.configure(
-            "TEntry", fieldbackground="#FFFFFF", bordercolor=COLORS["border"], lightcolor=COLORS["border"],
-            darkcolor=COLORS["border"], padding=5,
-        )
-        style.configure("TCombobox", padding=4)
-        style.configure("Footer.TLabel", background=COLORS["bg"], foreground=COLORS["muted"], font=(FONT, 8))
-
-        style.configure("TButton", padding=(12, 7), borderwidth=1, bordercolor=COLORS["border"],
-                        background="#FFFFFF", focuscolor=COLORS["card"])
-        style.map("TButton", background=[("active", "#E8ECEF"), ("disabled", "#EEF0F2")],
-                  foreground=[("disabled", "#A0A8B0")])
-        style.configure("Primary.TButton", font=(FONT, 11, "bold"), foreground="#FFFFFF",
-                        background=COLORS["primary"], bordercolor=COLORS["primary"], padding=(18, 9))
-        style.map("Primary.TButton",
-                  background=[("active", COLORS["primary_hover"]), ("disabled", "#A5C8A7")],
-                  foreground=[("disabled", "#FFFFFF")])
-        style.configure("Danger.TButton", font=(FONT, 11, "bold"), foreground="#FFFFFF",
-                        background=COLORS["danger"], bordercolor=COLORS["danger"], padding=(18, 9))
-        style.map("Danger.TButton",
-                  background=[("active", COLORS["danger_hover"]), ("disabled", "#E5A8A8")],
-                  foreground=[("disabled", "#FFFFFF")])
-        style.configure("Horizontal.TProgressbar", troughcolor="#E1E5E9", background=COLORS["primary"],
-                        bordercolor=COLORS["border"], lightcolor=COLORS["primary"], darkcolor=COLORS["primary"])
-
     def _enable_dark_title_bar(self):
         """Làm tối thanh tiêu đề Windows; máy không hỗ trợ thì bỏ qua êm."""
         try:
@@ -491,7 +442,8 @@ class App:
         self.txt_log.bind("<Button-1>", lambda event: self.txt_log.focus_set())
 
         # Đặt ở đáy và pack trước khung nhật ký, để khi cửa sổ thấp thì nhật ký co lại chứ không che mất dòng này
-        ttk.Label(main, text=version.build_text(), style="Footer.TLabel").pack(
+        ctk.CTkLabel(main, text=version.build_text(), text_color=C["muted"], font=(FONT, 8),
+                     fg_color="transparent").pack(
             side=tk.BOTTOM, anchor="e", pady=(6, 0), before=log_header)
 
     def _center_window(self):

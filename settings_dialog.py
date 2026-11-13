@@ -1,24 +1,26 @@
 """Cửa sổ Cài đặt: sửa các thiết lập đang lưu trong config.json."""
 import tkinter as tk
-from tkinter import filedialog, messagebox, ttk
+from tkinter import filedialog, messagebox
+
+import customtkinter as ctk
 
 import config as app_config
+import ui_theme
 
-ERROR_COLOR = "#C62828"
+C = ui_theme.PALETTE
+FONT = ui_theme.FONT
 
 
-class SettingsDialog(tk.Toplevel):
+class SettingsDialog(ctk.CTkToplevel):
     def __init__(self, parent, current_config):
         super().__init__(parent)
         self.result = None
         self.config = dict(current_config)
 
         self.title("Cài đặt")
+        self.configure(fg_color=C["bg"])
         self.transient(parent)
         self.resizable(False, False)
-        self._style = ttk.Style(self)
-        self._style.configure("Error.TLabel", foreground=ERROR_COLOR)
-        self._style.configure("Hint.TLabel", foreground="#6B7785")
 
         self._build()
         self._fill(self.config)
@@ -27,8 +29,8 @@ class SettingsDialog(tk.Toplevel):
         self.grab_set()
 
     def _build(self):
-        body = ttk.Frame(self, padding=(18, 14))
-        body.pack(fill=tk.BOTH, expand=True)
+        body = ctk.CTkFrame(self, fg_color=C["bg"])
+        body.pack(fill=tk.BOTH, expand=True, padx=18, pady=14)
         body.columnconfigure(1, weight=1)
 
         self.var_chrome = tk.StringVar()
@@ -43,55 +45,76 @@ class SettingsDialog(tk.Toplevel):
         self._errors = {}
 
         row = 0
-        ttk.Label(body, text="Đường dẫn chrome.exe").grid(row=row, column=0, sticky="w", pady=4)
-        ttk.Entry(body, textvariable=self.var_chrome, width=48).grid(row=row, column=1, sticky="ew", padx=6)
-        chrome_buttons = ttk.Frame(body)
+        ctk.CTkLabel(body, text="Đường dẫn chrome.exe", text_color=C["text"],
+                     fg_color="transparent").grid(row=row, column=0, sticky="w", pady=4)
+        ctk.CTkEntry(body, textvariable=self.var_chrome, width=340, fg_color=C["surface_alt"],
+                     border_color=C["border"], text_color=C["text"], corner_radius=8).grid(
+            row=row, column=1, sticky="ew", padx=6)
+        chrome_buttons = ctk.CTkFrame(body, fg_color="transparent")
         chrome_buttons.grid(row=row, column=2, sticky="w")
-        ttk.Button(chrome_buttons, text="Chọn…", command=self._choose_chrome, padding=(8, 3)).pack(side=tk.LEFT)
-        ttk.Button(chrome_buttons, text="Tự dò", command=self._detect_chrome, padding=(8, 3)).pack(
+        self._secondary_button(chrome_buttons, "Chọn…", self._choose_chrome).pack(side=tk.LEFT)
+        self._secondary_button(chrome_buttons, "Tự dò", self._detect_chrome).pack(
             side=tk.LEFT, padx=(4, 0))
         self._error(body, row, "chrome_path")
-        ttk.Label(body, text="Để trống để Tool tự dò vị trí cài đặt.", style="Hint.TLabel").grid(
+        ctk.CTkLabel(body, text="Để trống để Tool tự dò vị trí cài đặt.", text_color=C["muted"],
+                     font=(FONT, 9), fg_color="transparent").grid(
             row=row + 1, column=0, columnspan=4, sticky="w")
         row += 2
 
-        self._field(body, row, "Cổng debug", self.var_port, "debug_port", width=10)
+        self._field(body, row, "Cổng debug", self.var_port, "debug_port", 90)
         row += 1
-        self._field(body, row, "Thư mục profile Chrome", self.var_profile, "user_data_dir", width=48)
+        self._field(body, row, "Thư mục profile Chrome", self.var_profile, "user_data_dir", 340)
         row += 1
-        self._field(body, row, "Chờ kết quả tối đa (giây)", self.var_wait, "wait_seconds", width=10)
+        self._field(body, row, "Chờ kết quả tối đa (giây)", self.var_wait, "wait_seconds", 90)
         row += 1
-        self._field(body, row, "Ghi chú sau khi chạy", self.var_note, "note_text", width=48)
+        self._field(body, row, "Ghi chú sau khi chạy", self.var_note, "note_text", 340)
         row += 1
-        self._field(body, row, "Cập nhật trạng thái mỗi (giây)", self.var_interval, "status_interval", width=10)
+        self._field(body, row, "Cập nhật trạng thái mỗi (giây)", self.var_interval, "status_interval", 90)
         row += 1
-        self._field(body, row, "Giữ nhật ký (ngày)", self.var_retention, "log_retention_days", width=10)
+        self._field(body, row, "Giữ nhật ký (ngày)", self.var_retention, "log_retention_days", 90)
         row += 1
 
-        ttk.Label(body, text="Thông báo khi xong").grid(row=row, column=0, sticky="nw", pady=(8, 2))
-        notify = ttk.Frame(body)
+        ctk.CTkLabel(body, text="Thông báo khi xong", text_color=C["text"], fg_color="transparent").grid(
+            row=row, column=0, sticky="nw", pady=(8, 2))
+        notify = ctk.CTkFrame(body, fg_color="transparent")
         notify.grid(row=row, column=1, columnspan=3, sticky="w", pady=(8, 2))
-        ttk.Checkbutton(notify, text="Âm thanh", variable=self.var_sound).pack(side=tk.LEFT)
-        ttk.Checkbutton(notify, text="Nhấp nháy taskbar", variable=self.var_flash).pack(side=tk.LEFT, padx=(14, 0))
+        ctk.CTkCheckBox(notify, text="Âm thanh", variable=self.var_sound, text_color=C["text"],
+                        fg_color=C["accent"], hover_color=C["accent_hover"],
+                        border_color=C["border"], checkmark_color=C["on_accent"]).pack(side=tk.LEFT)
+        ctk.CTkCheckBox(notify, text="Nhấp nháy taskbar", variable=self.var_flash, text_color=C["text"],
+                        fg_color=C["accent"], hover_color=C["accent_hover"],
+                        border_color=C["border"], checkmark_color=C["on_accent"]).pack(
+            side=tk.LEFT, padx=(14, 0))
         row += 1
 
-        ttk.Separator(body).grid(row=row, column=0, columnspan=4, sticky="ew", pady=12)
+        ctk.CTkFrame(body, height=1, fg_color=C["border"]).grid(
+            row=row, column=0, columnspan=4, sticky="ew", pady=12)
         row += 1
 
-        buttons = ttk.Frame(body)
+        buttons = ctk.CTkFrame(body, fg_color="transparent")
         buttons.grid(row=row, column=0, columnspan=4, sticky="e")
-        ttk.Button(buttons, text="Khôi phục mặc định", command=self._restore_defaults).pack(side=tk.LEFT)
-        ttk.Button(buttons, text="Hủy", command=self._cancel).pack(side=tk.LEFT, padx=(8, 0))
-        ttk.Button(buttons, text="Lưu", style="Primary.TButton", command=self._save).pack(
-            side=tk.LEFT, padx=(8, 0))
+        self._secondary_button(buttons, "Khôi phục mặc định", self._restore_defaults).pack(side=tk.LEFT)
+        self._secondary_button(buttons, "Hủy", self._cancel).pack(side=tk.LEFT, padx=(8, 0))
+        ctk.CTkButton(buttons, text="Lưu", command=self._save, fg_color=C["accent"],
+                      hover_color=C["accent_hover"], text_color=C["on_accent"], font=(FONT, 11, "bold"),
+                      corner_radius=8).pack(side=tk.LEFT, padx=(8, 0))
+
+    def _secondary_button(self, parent, text, command):
+        return ctk.CTkButton(parent, text=text, command=command, fg_color=C["surface_alt"],
+                             hover_color=C["hover"], text_color=C["text"], corner_radius=8,
+                             border_width=1, border_color=C["border"])
 
     def _field(self, parent, row, label, variable, key, width):
-        ttk.Label(parent, text=label).grid(row=row, column=0, sticky="w", pady=4)
-        ttk.Entry(parent, textvariable=variable, width=width).grid(row=row, column=1, sticky="w", padx=6)
+        ctk.CTkLabel(parent, text=label, text_color=C["text"], fg_color="transparent").grid(
+            row=row, column=0, sticky="w", pady=4)
+        ctk.CTkEntry(parent, textvariable=variable, width=width, fg_color=C["surface_alt"],
+                     border_color=C["border"], text_color=C["text"], corner_radius=8).grid(
+            row=row, column=1, sticky="w", padx=6)
         self._error(parent, row, key)
 
     def _error(self, parent, row, key):
-        label = ttk.Label(parent, text="", style="Error.TLabel", wraplength=220)
+        label = ctk.CTkLabel(parent, text="", text_color=C["error"], font=(FONT, 9), wraplength=220,
+                             fg_color="transparent", anchor="w")
         label.grid(row=row, column=3, sticky="w", padx=(8, 0))
         self._errors[key] = label
 
@@ -122,7 +145,7 @@ class SettingsDialog(tk.Toplevel):
 
     def _show_errors(self, errors):
         for key, label in self._errors.items():
-            label.config(text=errors.get(key, ""))
+            label.configure(text=errors.get(key, ""))
 
     def _save(self):
         values = self._collect()
@@ -164,7 +187,8 @@ class SettingsDialog(tk.Toplevel):
 
     def _center(self, parent):
         self.update_idletasks()
-        width, height = self.winfo_width(), self.winfo_height()
+        # Dùng bề rộng yêu cầu: CTk trả kích thước mặc định khi cửa sổ chưa hiện.
+        width, height = self.winfo_reqwidth(), self.winfo_reqheight()
         x = parent.winfo_rootx() + max((parent.winfo_width() - width) // 2, 0)
         y = parent.winfo_rooty() + max((parent.winfo_height() - height) // 3, 0)
-        self.geometry(f"+{x}+{y}")
+        self.wm_geometry(f"+{x}+{y}")
