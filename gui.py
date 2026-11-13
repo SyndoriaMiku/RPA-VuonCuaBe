@@ -150,12 +150,13 @@ class App:
             pass
 
     def _card(self, parent, title, step):
-        outer = tk.Frame(parent, bg=COLORS["card"], highlightbackground=COLORS["border"], highlightthickness=1)
+        outer = ctk.CTkFrame(parent, fg_color=C["surface"], corner_radius=RADIUS,
+                             border_width=1, border_color=C["border"])
         outer.pack(fill=tk.X, pady=(0, 10))
-        inner = ttk.Frame(outer, style="Card.TFrame", padding=(14, 10))
-        inner.pack(fill=tk.BOTH, expand=True)
-        ttk.Label(inner, text=f"{step}  {title}", style="CardTitle.TLabel").grid(
-            row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
+        inner = ctk.CTkFrame(outer, fg_color="transparent")
+        inner.pack(fill=tk.BOTH, expand=True, padx=14, pady=10)
+        ctk.CTkLabel(inner, text=f"{step}  {title}", text_color=C["text"], font=(FONT, 11, "bold"),
+                     fg_color="transparent").grid(row=0, column=0, columnspan=4, sticky="w", pady=(0, 8))
         inner.columnconfigure(1, weight=1)
         return inner
 
@@ -207,51 +208,77 @@ class App:
 
         # Bước 1: Chrome
         card1 = self._card(main, "Mở Chrome Debug", "①")
-        self.lbl_chrome = ttk.Label(card1, text="", style="Muted.TLabel")
+        self.lbl_chrome = ctk.CTkLabel(card1, text="", text_color=C["muted"], font=(FONT, 9),
+                                       fg_color="transparent", anchor="w")
         self.lbl_chrome.grid(row=1, column=0, columnspan=3, sticky="w")
-        ttk.Button(card1, text="Mở Chrome Debug", command=self.open_chrome_debug).grid(
+        ctk.CTkButton(card1, text="Mở Chrome Debug", command=self.open_chrome_debug,
+                      fg_color=C["surface_alt"], hover_color=C["hover"], text_color=C["text"],
+                      corner_radius=8, border_width=1, border_color=C["border"]).grid(
             row=1, column=3, sticky="e", padx=(10, 0))
-        ttk.Label(
-            card1, style="Muted.TLabel",
-            text="Sau khi Chrome mở, đăng nhập KiotViet và vào màn hình kiểm kho có ô tìm kiếm sản phẩm.",
+        ctk.CTkLabel(
+            card1, text="Sau khi Chrome mở, đăng nhập KiotViet và vào màn hình kiểm kho có ô tìm kiếm sản phẩm.",
+            text_color=C["muted"], font=(FONT, 9), fg_color="transparent", justify="left",
         ).grid(row=2, column=0, columnspan=4, sticky="w", pady=(6, 0))
 
         # Bước 2: Excel
         card2 = self._card(main, "Chọn dữ liệu Excel", "②")
-        ttk.Label(card2, text="File Excel", style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=4)
+        ctk.CTkLabel(card2, text="File Excel", text_color=C["text"], fg_color="transparent").grid(
+            row=1, column=0, sticky="w", pady=4)
         self.var_file = tk.StringVar(value=self.config["file_path"])
-        ttk.Entry(card2, textvariable=self.var_file).grid(row=1, column=1, columnspan=2, sticky="ew", padx=8)
-        ttk.Button(card2, text="Chọn file…", command=self.choose_file).grid(row=1, column=3, padx=(0, 0))
+        ctk.CTkEntry(card2, textvariable=self.var_file, fg_color=C["surface_alt"],
+                     border_color=C["border"], text_color=C["text"], corner_radius=8).grid(
+            row=1, column=1, columnspan=2, sticky="ew", padx=8)
+        ctk.CTkButton(card2, text="Chọn file…", command=self.choose_file, fg_color=C["surface_alt"],
+                      hover_color=C["hover"], text_color=C["text"], corner_radius=8,
+                      border_width=1, border_color=C["border"]).grid(row=1, column=3, padx=(0, 0))
 
-        ttk.Label(card2, text="Tên sheet", style="Card.TLabel").grid(row=2, column=0, sticky="w", pady=4)
+        ctk.CTkLabel(card2, text="Tên sheet", text_color=C["text"], fg_color="transparent").grid(
+            row=2, column=0, sticky="w", pady=4)
         self.var_sheet = tk.StringVar(value=self.config["sheet_name"])
-        ttk.Entry(card2, textvariable=self.var_sheet).grid(row=2, column=1, columnspan=2, sticky="ew", padx=8)
-        ttk.Label(card2, text="Để trống = sheet đang active", style="Muted.TLabel").grid(
-            row=2, column=3, sticky="w", padx=(10, 0))
+        ctk.CTkEntry(card2, textvariable=self.var_sheet, fg_color=C["surface_alt"],
+                     border_color=C["border"], text_color=C["text"], corner_radius=8).grid(
+            row=2, column=1, columnspan=2, sticky="ew", padx=8)
+        ctk.CTkLabel(card2, text="Để trống = sheet đang active", text_color=C["muted"], font=(FONT, 9),
+                     fg_color="transparent").grid(row=2, column=3, sticky="w", padx=(10, 0))
 
-        ttk.Label(card2, text="Ô bắt đầu", style="Card.TLabel").grid(row=3, column=0, sticky="w", pady=4)
+        ctk.CTkLabel(card2, text="Ô bắt đầu", text_color=C["text"], fg_color="transparent").grid(
+            row=3, column=0, sticky="w", pady=4)
         self.var_start = tk.StringVar(value=self.config["start_cell"])
         self.var_start.trace_add("write", lambda *_: self._refresh_cell_hint())
-        ttk.Entry(card2, textvariable=self.var_start, width=10).grid(row=3, column=1, sticky="w", padx=8)
-        self.lbl_cell_hint = ttk.Label(card2, text="", style="Muted.TLabel")
+        ctk.CTkEntry(card2, textvariable=self.var_start, width=80, fg_color=C["surface_alt"],
+                     border_color=C["border"], text_color=C["text"], corner_radius=8).grid(
+            row=3, column=1, sticky="w", padx=8)
+        self.lbl_cell_hint = ctk.CTkLabel(card2, text="", text_color=C["muted"], font=(FONT, 9),
+                                          fg_color="transparent", anchor="w")
         self.lbl_cell_hint.grid(row=3, column=2, columnspan=2, sticky="w")
 
-        ttk.Label(card2, text="Cơ sở theo file", style="Card.TLabel").grid(row=4, column=0, sticky="w", pady=4)
+        ctk.CTkLabel(card2, text="Cơ sở theo file", text_color=C["text"], fg_color="transparent").grid(
+            row=4, column=0, sticky="w", pady=4)
         self.var_branch = tk.StringVar()
-        self.combo_branch = ttk.Combobox(card2, textvariable=self.var_branch, state="readonly")
+        self.combo_branch = ctk.CTkComboBox(
+            card2, variable=self.var_branch, values=[], command=lambda _value: self._on_branch_selected(),
+            fg_color=C["surface_alt"], border_color=C["border"], text_color=C["text"],
+            button_color=C["surface_alt"], button_hover_color=C["hover"], dropdown_fg_color=C["surface"],
+            dropdown_hover_color=C["hover"], dropdown_text_color=C["text"], corner_radius=8)
         self.combo_branch.grid(row=4, column=1, sticky="ew", padx=8)
-        self.combo_branch.bind("<<ComboboxSelected>>", self._on_branch_selected)
-        self.btn_change_branch = ttk.Button(card2, text="Đổi trên web", command=self.change_branch_clicked)
+        self.btn_change_branch = ctk.CTkButton(
+            card2, text="Đổi trên web", command=self.change_branch_clicked, fg_color=C["surface_alt"],
+            hover_color=C["hover"], text_color=C["text"], corner_radius=8,
+            border_width=1, border_color=C["border"])
         self.btn_change_branch.grid(row=4, column=2, sticky="w")
-        self.lbl_branch = tk.Label(
-            card2, text="Chọn file Excel để nhận cơ sở.", bg=COLORS["card"], fg=COLORS["muted"],
-            font=(FONT, 9), anchor="w")
+        self.lbl_branch = ctk.CTkLabel(card2, text="Chọn file Excel để nhận cơ sở.", text_color=C["muted"],
+                                       font=(FONT, 9), fg_color="transparent", anchor="w")
         self.lbl_branch.grid(row=4, column=3, sticky="w", padx=(10, 0))
 
         # Bước 3: Chạy
         card3 = self._card(main, "Kiểm tra và chạy", "③")
-        ttk.Label(card3, text="Chờ kết quả tối đa (giây)", style="Card.TLabel").grid(row=1, column=0, sticky="w", pady=4)
-        self.combo_wait = ttk.Combobox(card3, values=["3.0", "4.0", "5.0", "7.0", "10.0"], width=6)
+        ctk.CTkLabel(card3, text="Chờ kết quả tối đa (giây)", text_color=C["text"],
+                     fg_color="transparent").grid(row=1, column=0, sticky="w", pady=4)
+        self.combo_wait = ctk.CTkComboBox(
+            card3, values=["3.0", "4.0", "5.0", "7.0", "10.0"], width=100, fg_color=C["surface_alt"],
+            border_color=C["border"], text_color=C["text"], button_color=C["surface_alt"],
+            button_hover_color=C["hover"], dropdown_fg_color=C["surface"],
+            dropdown_hover_color=C["hover"], dropdown_text_color=C["text"], corner_radius=8)
         self.combo_wait.set(str(self.config["wait_seconds"]))
         self.combo_wait.grid(row=1, column=1, sticky="w", padx=8)
 
@@ -309,17 +336,17 @@ class App:
     def _refresh_cell_hint(self):
         try:
             start_cell, _, quantity_column, start_row = excel_reader.parse_start_cell(self.var_start.get())
-            self.lbl_cell_hint.config(
+            self.lbl_cell_hint.configure(
                 text=f"Mã hàng đọc từ {start_cell}, số lượng đọc ở {quantity_column}{start_row} trở xuống")
         except ValueError:
-            self.lbl_cell_hint.config(text="Ô bắt đầu chưa hợp lệ, ví dụ: B4")
+            self.lbl_cell_hint.configure(text="Ô bắt đầu chưa hợp lệ, ví dụ: B4")
 
     def _refresh_chrome_status(self):
         path = app_config.find_chrome(self.config["chrome_path"])
         if path:
-            self.lbl_chrome.config(text=f"Chrome: {path}  ·  cổng debug {self.config['debug_port']}")
+            self.lbl_chrome.configure(text=f"Chrome: {path}  ·  cổng debug {self.config['debug_port']}")
         else:
-            self.lbl_chrome.config(text="Chưa tìm thấy Chrome. Bấm nút bên phải để chọn chrome.exe.")
+            self.lbl_chrome.configure(text="Chưa tìm thấy Chrome. Bấm nút bên phải để chọn chrome.exe.")
 
     def _on_status_update(self, status):
         """Nhận trạng thái từ luồng nền và chuyển về main thread của Tk."""
@@ -860,7 +887,7 @@ class App:
             return
         if branches != self._branches:
             self._branches = branches
-            self.combo_branch.config(values=[name for _, name in branches])
+            self.combo_branch.configure(values=[name for _, name in branches])
 
         # Chọn sẵn cơ sở theo file (ưu tiên lựa chọn tay đã lưu) khi danh sách vừa có
         if self._current_title and self._selected_branch() is None:
@@ -886,7 +913,7 @@ class App:
 
     def _show_branch_choice(self, branch):
         def apply():
-            if branch[1] in self.combo_branch["values"]:
+            if branch[1] in self.combo_branch.cget("values"):
                 self.var_branch.set(branch[1])
             self._update_branch_hint()
         self.root.after(0, apply)
@@ -894,22 +921,22 @@ class App:
     def _update_branch_hint(self):
         selected = self._selected_branch()
         if not self._current_title:
-            self.lbl_branch.config(text="Chọn file Excel để nhận cơ sở.", fg=COLORS["muted"])
+            self.lbl_branch.configure(text="Chọn file Excel để nhận cơ sở.", text_color=C["muted"])
             return
         if selected is None:
             if self._branches:
-                self.lbl_branch.config(text="⚠ Không nhận ra cơ sở từ C2, hãy chọn", fg=COLORS["warn"])
+                self.lbl_branch.configure(text="⚠ Không nhận ra cơ sở từ C2, hãy chọn", text_color=C["warn"])
             else:
-                self.lbl_branch.config(text="Chưa đọc được danh sách cơ sở trên web", fg=COLORS["muted"])
+                self.lbl_branch.configure(text="Chưa đọc được danh sách cơ sở trên web", text_color=C["muted"])
             return
 
         web = (self._last_status or {}).get("branch")
         if not web:
-            self.lbl_branch.config(text="Chưa kết nối web", fg=COLORS["muted"])
+            self.lbl_branch.configure(text="Chưa kết nối web", text_color=C["muted"])
         elif str(web[0]) == str(selected[0]):
-            self.lbl_branch.config(text="✓ Khớp với web", fg=COLORS["primary"])
+            self.lbl_branch.configure(text="✓ Khớp với web", text_color=C["ok"])
         else:
-            self.lbl_branch.config(text=f"⚠ Web đang ở {web[1]}", fg=COLORS["warn"])
+            self.lbl_branch.configure(text=f"⚠ Web đang ở {web[1]}", text_color=C["warn"])
 
     def _confirm_branch(self, driver, title):
         """So cơ sở đang chọn trong danh sách với cơ sở làm việc trên web."""
