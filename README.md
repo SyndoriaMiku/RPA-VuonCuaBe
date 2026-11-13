@@ -1,6 +1,6 @@
 # RPA Vườn Của Bé — Auto Robot KiotViet
 
-[![Phiên bản](https://img.shields.io/badge/phi%C3%AAn%20b%E1%BA%A3n-1.5.0-brightgreen)](#phiên-bản)
+[![Phiên bản](https://img.shields.io/badge/phi%C3%AAn%20b%E1%BA%A3n-1.6.0-brightgreen)](#phiên-bản)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org/)
 [![Nền tảng](https://img.shields.io/badge/n%E1%BB%81n%20t%E1%BA%A3ng-Windows-0078d6)](#yêu-cầu)
 [![Giấy phép](https://img.shields.io/badge/gi%E1%BA%A5y%20ph%C3%A9p-GPL--3.0-orange)](LICENSE)
@@ -85,6 +85,10 @@ Chọn file `.xlsx`, tên sheet và ô bắt đầu. Dòng gợi ý bên cạnh 
 - Mỗi lần mở Tool ghi nhật ký ra file trong thư mục `logs` cạnh `AutoApp.exe` (tên `AutoRobot_<ngày>_<giờ>.log`, mỗi dòng kèm giờ). Tool tự xóa các file log cũ hơn số ngày giữ, mặc định 7 ngày (đổi trong **Cài đặt**). Khi báo lỗi, gửi kèm file log của lần chạy đó. Nút **Xóa** chỉ xóa phần đang hiện trên màn hình, không xóa file log.
 - Các thiết lập (file, sheet, ô bắt đầu, thời gian chờ, đường dẫn Chrome) được lưu vào `config.json` cạnh `AutoApp.exe` và tự nạp lại lần sau. Các thiết lập còn lại sửa trong **⚙ Cài đặt** (xem bên dưới).
 
+## Giao diện
+
+Tool dùng tông tối **"Xanh đêm"** (CustomTkinter): nền `#0D1117`, thẻ `#161B22`, màu nhấn `#4C8DFF`; thanh tiêu đề Windows cũng được làm tối. Giao diện có sáu chuyển động ngắn: chấm trạng thái nhấp nháy khi chưa kết nối và đổi màu mượt khi kết nối, nút sáng lên khi bấm, thanh tiến độ chạy êm kèm vệt sáng khi đang chạy, dòng nhật ký hiện dần và cuộn êm (gộp lại khi log về dồn dập), viền thẻ bước sáng lên khi rê chuột. Các chuyển động tự tạm dừng khi cửa sổ bị thu nhỏ.
+
 ## Thanh trạng thái
 
 Dải ngay dưới tiêu đề cho biết trước khi bấm Chạy là Tool có thao tác được không. Nó tự cập nhật mỗi 5 giây (đổi trong **Cài đặt**):
@@ -147,7 +151,7 @@ python app.py
 python -m pytest tests
 ```
 
-- `requirements.txt`: thư viện cần để chạy Tool (`openpyxl`, `selenium`).
+- `requirements.txt`: thư viện cần để chạy Tool (`customtkinter`, `openpyxl`, `selenium`).
 - `requirements-dev.txt`: thêm `pyinstaller` và `pytest` cho phát triển và build.
 
 Selenium (từ 4.6) tự tải chromedriver phù hợp với phiên bản Chrome qua Selenium Manager, không cần tải chromedriver thủ công.
@@ -164,14 +168,15 @@ Script chạy test trong `p310`, sau đó build `dist/AutoApp.exe` bằng `AutoA
 
 Số phiên bản nằm trong `version.py`:
 
-- Tiêu đề cửa sổ hiển thị `Auto Robot v1.5.0` khi chạy từ mã nguồn, và `Auto Robot v1.5.0 (<mã commit> <ngày build>)` với bản `.exe`.
+- Tiêu đề cửa sổ hiển thị `Auto Robot v1.6.0` khi chạy từ mã nguồn, và `Auto Robot v1.6.0 (<mã commit> <ngày build>)` với bản `.exe`.
 - Góc dưới bên phải cửa sổ và dòng đầu nhật ký luôn hiển thị phiên bản đang chạy, thuận tiện khi báo lỗi.
-- Quy ước tăng số: thay đổi nhỏ/sửa lỗi tăng số cuối (`1.4.4` → `1.4.5`), thêm tính năng lớn tăng số giữa (`1.4.5` → `1.5.0`).
+- Quy ước tăng số: thay đổi nhỏ/sửa lỗi tăng số cuối (`1.4.4` → `1.4.5`), thêm tính năng lớn tăng số giữa (`1.5.0` → `1.6.0`).
 
 ## Cấu trúc dự án
 
 - `app.py`: điểm khởi chạy.
-- `gui.py`: giao diện Tkinter, xử lý luồng và lưu cấu hình.
+- `gui.py`: giao diện CustomTkinter (tông tối), xử lý luồng, chuyển động và lưu cấu hình.
+- `ui_theme.py`: bảng màu tối, trộn màu, tween và bật thanh tiêu đề tối của Windows.
 - `automation.py`: vòng lặp xử lý từng mã hàng, thống kê kết quả, xử lý dừng.
 - `kiotviet.py`: thao tác Selenium với KiotViet (nhận diện trang, đổi cơ sở, tạo phiếu, tìm, điền, xác minh, chuyển tới mã trong nhật ký).
 - `verify.py`: so SL lệch trên phiếu với số lượng trong Excel cho các mã đã điền.
