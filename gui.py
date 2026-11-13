@@ -2,6 +2,7 @@ import ctypes
 import os
 import subprocess
 import threading
+import time
 import tkinter as tk
 from tkinter import filedialog, messagebox, ttk
 
@@ -63,6 +64,15 @@ class App:
         self._branches = []
         self._current_title = ""
         self._link_seq = 0
+        # Trạng thái chuyển động (chấm trạng thái, nút, tiến độ, nhật ký)
+        self._anim_jobs = set()
+        self._dot_color = status_monitor.CONNECTION_COLORS["disconnected"]
+        self._dot_running = False
+        self._dot_phase = 0.0
+        self._shimmer_running = False
+        self._shimmer_on = True
+        self._last_log_time = 0.0
+        self._scroll_pending = False
         self.session = session.DriverSession(
             lambda: kiotviet.connect_driver(self.config["debug_port"], focus=False),
             prepare=kiotviet.select_kiotviet_tab)
@@ -94,6 +104,7 @@ class App:
         self.monitor.start()
         self.root.protocol("WM_DELETE_WINDOW", self._on_close)
         self._enable_dark_title_bar()
+        self._start_dot_pulse()
 
         # File đã dùng lần trước: load lại để hiện tiêu đề và tự đổi cơ sở như khi vừa chọn file
         remembered_file = self.config["file_path"]
@@ -148,10 +159,144 @@ class App:
         except Exception:
             pass
 
+    # ------------------------------------------------------------------
+    # Chuyển động
+    # ------------------------------------------------------------------
+    def _schedule(self, delay_ms, callback):
+        """Hẹn một bước chuyển động và ghi id lại để huỷ khi đóng cửa sổ."""
+        def run():
+            self._anim_jobs.discard(str(job))
+            callback()
+
+        job = self.root.after(delay_ms, run)
+        self._anim_jobs.add(str(job))
+        return job
+
+    def _cancel_animations(self):
+        """Huỷ mọi bước chuyển động đang chờ (gọi trước khi đóng cửa sổ)."""
+        jobs, self._anim_jobs = self._anim_jobs, set()
+        self._dot_running = False
+        self._shimmer_running = False
+        for job in jobs:
+            try:
+                self.root.after_cancel(job)
+            except Exception:
+                pass
+
+    def _set_dot_color(self, target):
+        """Đổi màu chấm trạng thái mượt trong 160 ms."""
+        start = self._dot_color or target
+        self._dot_color = target
+        if start == target:
+            self.lbl_status_dot.configure(text_color=target)
+            return
+        ui_theme.tween(
+            self._schedule, 160,
+            on_frame=lambda t: self.lbl_status_dot.configure(
+                text_color=ui_theme.blend(start, target, t)),
+            on_done=lambda: self.lbl_status_dot.configure(text_color=target))
+
+    def _dot_loop(self):
+        if not self._dot_running:
+            return
+        if self.root.state() != "iconic":  # thu nhỏ thì tạm dừng cho đỡ tốn CPU
+            base = self._dot_color or C["error"]
+            self.lbl_status_dot.configure(
+                text_color=ui_theme.blend(C["surface"], base, 0.45 + 0.55 * abs(1 - 2 * self._dot_phase)))
+        self._dot_phase = (self._dot_phase + 0.05) % 1.0
+        self._schedule(60, self._dot_loop)
+
+    def _start_dot_pulse(self):
+        if not self._dot_running:
+            self._dot_running = True
+            self._dot_phase = 0.0
+            self._dot_loop()
+
+    def _stop_dot_pulse(self):
+        self._dot_running = False
+
+    def _tween_button(self, button, start, target):
+        ui_theme.tween(self._schedule, 120,
+                       on_frame=lambda t: button.configure(fg_color=ui_theme.blend(start, target, t)),
+                       on_done=lambda: button.configure(fg_color=target))
+
+    def _bind_press(self, button, base, active):
+        """Nút sáng lên khi bấm rồi trở lại (120 ms)."""
+        button.bind("<ButtonPress-1>", lambda _e: self._tween_button(button, base, active), add="+")
+        button.bind("<ButtonRelease-1>", lambda _e: self._tween_button(button, active, base), add="+")
+
+    def _ease_progress(self, target):
+        """Thanh tiến độ chạy êm tới giá trị mới thay vì nhảy."""
+        start = self.progress_bar.get()
+        if abs(target - start) < 0.001:
+            self.progress_bar.set(target)
+            return
+        ui_theme.tween(self._schedule, 180,
+                       on_frame=lambda t: self.progress_bar.set(start + (target - start) * t),
+                       on_done=lambda: self.progress_bar.set(target))
+
+    def _shimmer_loop(self):
+        """Vệt sáng nhấp nháy nhẹ trên thanh tiến độ khi Tool đang chạy."""
+        if not self._shimmer_running:
+            return
+        if self.root.state() != "iconic":
+            self._shimmer_on = not self._shimmer_on
+            self.progress_bar.configure(
+                progress_color=C["accent"] if self._shimmer_on
+                else ui_theme.blend(C["accent"], "#FFFFFF", 0.18))
+        self._schedule(700, self._shimmer_loop)
+
+    def _start_shimmer(self):
+        if not self._shimmer_running:
+            self._shimmer_running = True
+            self._shimmer_loop()
+
+    def _stop_shimmer(self):
+        self._shimmer_running = False
+        self.progress_bar.configure(progress_color=C["accent"])
+
+    def _fade_log_line(self, anchor, level):
+        """Dòng nhật ký mới hiện dần từ màu nền lên màu của mức."""
+        self._link_seq += 1
+        tag = f"fade{self._link_seq}"
+        target = LOG_COLORS.get(level, LOG_COLORS["info"])
+        self.txt_log.tag_add(tag, anchor, f"{anchor} lineend")
+        self.txt_log.tag_config(tag, foreground=C["surface"])
+        ui_theme.tween(self._schedule, 160,
+                       on_frame=lambda t: self.txt_log.tag_config(
+                           tag, foreground=ui_theme.blend(C["surface"], target, t)),
+                       on_done=lambda: self.txt_log.tag_config(tag, foreground=target))
+
+    def _smooth_scroll(self):
+        """Cuộn êm tới dòng mới; gộp nhiều dòng liền nhau thành một lần cuộn."""
+        if self._scroll_pending:
+            return
+        start = self.txt_log.yview()[0]
+        if start >= 0.999:
+            return
+        self._scroll_pending = True
+
+        def finish():
+            self._scroll_pending = False
+
+        ui_theme.tween(self._schedule, 160,
+                       on_frame=lambda t: self.txt_log.yview_moveto(start + (1.0 - start) * t),
+                       on_done=finish)
+
+    def _tween_card_border(self, card, start, target):
+        ui_theme.tween(self._schedule, 160,
+                       on_frame=lambda t: card.configure(border_color=ui_theme.blend(start, target, t)),
+                       on_done=lambda: card.configure(border_color=target))
+
+    def _bind_card_hover(self, card):
+        card.bind("<Enter>", lambda _e: self._tween_card_border(card, C["border"], C["accent"]), add="+")
+        card.bind("<Leave>", lambda _e: self._tween_card_border(card, C["accent"], C["border"]), add="+")
+
     def _card(self, parent, title, step):
         outer = ctk.CTkFrame(parent, fg_color=C["surface"], corner_radius=RADIUS,
                              border_width=1, border_color=C["border"])
         outer.pack(fill=tk.X, pady=(0, 10))
+        self._bind_card_hover(outer)
         inner = ctk.CTkFrame(outer, fg_color="transparent")
         inner.pack(fill=tk.BOTH, expand=True, padx=14, pady=10)
         ctk.CTkLabel(inner, text=f"{step}  {title}", text_color=C["text"], font=(FONT, 11, "bold"),
@@ -298,6 +443,8 @@ class App:
             hover_color=C["bad_hover"], text_color=C["on_accent"], font=(FONT, 11, "bold"),
             corner_radius=8, state=tk.DISABLED)
         self.btn_stop.pack(side=tk.LEFT)
+        self._bind_press(self.btn_run, C["accent"], C["accent_hover"])
+        self._bind_press(self.btn_stop, C["error"], C["bad_hover"])
 
         progress_row = ctk.CTkFrame(card3, fg_color="transparent")
         progress_row.grid(row=3, column=0, columnspan=4, sticky="ew", pady=(8, 0))
@@ -382,8 +529,12 @@ class App:
     def _apply_status(self, status, running=False):
         view = status_monitor.describe_status(status, running)
         self.lbl_status.configure(text=view["text"])
-        self.lbl_status_dot.configure(
-            text_color=status_monitor.CONNECTION_COLORS["connected" if view["connected"] else "disconnected"])
+        self._set_dot_color(
+            status_monitor.CONNECTION_COLORS["connected" if view["connected"] else "disconnected"])
+        if view["connected"]:
+            self._stop_dot_pulse()
+        else:
+            self._start_dot_pulse()
         if view["can_open_chrome"]:
             self.btn_show_chrome.pack_forget()
             self.btn_status_chrome.pack(side=tk.RIGHT)
@@ -449,7 +600,11 @@ class App:
                 self.txt_log.tag_bind(tag, "<Button-1>", lambda event, c=code: self.reveal_code(c))
                 self.txt_log.tag_bind(tag, "<Enter>", lambda event: self.txt_log.config(cursor="hand2"))
                 self.txt_log.tag_bind(tag, "<Leave>", lambda event: self.txt_log.config(cursor=""))
-            self.txt_log.see(tk.END)
+            now = time.monotonic()
+            if now - self._last_log_time >= 0.150:  # dòng về dồn dập thì bỏ fade cho khỏi trễ
+                self._fade_log_line(anchor, level)
+            self._last_log_time = now
+            self._smooth_scroll()
             self.txt_log.config(state=tk.DISABLED)
 
         if self._on_main_thread():
@@ -462,8 +617,10 @@ class App:
         self.root.after(0, lambda: getattr(messagebox, kind)(title, message))
 
     def update_progress(self, done, total):
+        target = done / total if total else 0
+
         def apply():
-            self.progress_bar.set(done / total if total else 0)
+            self._ease_progress(target)
             self.lbl_progress.configure(text=f"{done}/{total}" if total else "")
 
         if self._on_main_thread():
@@ -480,8 +637,10 @@ class App:
         self.btn_show_chrome.configure(state=tk.DISABLED if running else tk.NORMAL)
         self.btn_stop.configure(state=tk.NORMAL if running and can_stop else tk.DISABLED)
         if running:
+            self._start_shimmer()
             self._apply_status(None, running=True)
         else:
+            self._stop_shimmer()
             self._apply_status(self._last_status)
             self.monitor.refresh()
 
@@ -578,6 +737,7 @@ class App:
         self._save_config()
         self.monitor.stop(wait=False)
         self.file_log.close()
+        self._cancel_animations()
         self.session.terminate()
         self.root.destroy()
 

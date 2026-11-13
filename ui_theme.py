@@ -3,6 +3,8 @@
 Tách riêng khỏi `gui.py` vì phần này thuần Python — không cần Tk — nên test được
 bằng pytest, còn phần dựng widget vẫn nằm trong `gui.py`.
 """
+import time
+
 FONT = "Segoe UI"
 RADIUS = 10
 
@@ -57,16 +59,23 @@ def contrast_ratio(color_a, color_b):
     return (high + 0.05) / (low + 0.05)
 
 
-def tween(schedule, duration_ms, frame_ms=16, on_frame=None, on_done=None):
-    """Gọi on_frame(t) với t chạy 0.0 → 1.0 rồi on_done().
+def tween(schedule, duration_ms, frame_ms=16, on_frame=None, on_done=None, clock=None):
+    """Gọi on_frame(t) với t chạy 0.0 → 1.0 theo thời gian thực rồi on_done().
 
     `schedule(delay_ms, callback)` do nơi gọi cấp: `root.after` khi chạy thật,
-    hoặc hàm giả trong test. Không tự ngủ, nên không bao giờ chặn giao diện.
+    hoặc hàm giả trong test. `clock()` trả số giây; mặc định `time.monotonic`, đổi
+    được trong test. Tính theo đồng hồ nên hiệu ứng đúng thời lượng đã định dù timer
+    của Windows chỉ chính xác tới ~16 ms. Không tự ngủ, nên không chặn giao diện.
     """
+    clock = clock or time.monotonic
     total, step = max(1, int(duration_ms)), max(1, int(frame_ms))
+    started = clock()
+    max_frames = total // step + 2  # chốt hạ nếu đồng hồ không chạy
 
     def frame(index):
-        t = min(1.0, index * step / total)
+        t = min(1.0, (clock() - started) * 1000 / total)
+        if index >= max_frames:
+            t = 1.0
         if on_frame:
             on_frame(t)
         if t >= 1.0:

@@ -37,21 +37,41 @@ def test_contrast_ratio_of_key_pairs_is_accessible():
     assert ui_theme.contrast_ratio("#8B98A5", "#161B22") >= 4.5
 
 
-def test_tween_runs_frames_to_one_then_done():
+def test_tween_follows_the_clock_not_the_frame_count():
     scheduled, frames, done = [], [], []
+    fake_now = {"value": 0.0}
 
     def schedule(delay_ms, callback):
+        fake_now["value"] += delay_ms / 1000.0
         scheduled.append(callback)
 
     ui_theme.tween(schedule, duration_ms=160, frame_ms=16,
-                   on_frame=frames.append, on_done=lambda: done.append(True))
+                   on_frame=frames.append, on_done=lambda: done.append(True),
+                   clock=lambda: fake_now["value"])
     while scheduled:
         scheduled.pop(0)()
 
     assert frames[0] == 0.0
     assert frames[-1] == 1.0
     assert frames == sorted(frames)
-    assert len(frames) == 11
+    assert done == [True]
+
+
+def test_tween_finishes_even_if_clock_stands_still():
+    scheduled, frames, done = [], [], []
+
+    def schedule(delay_ms, callback):
+        scheduled.append(callback)
+
+    ui_theme.tween(schedule, duration_ms=160, frame_ms=16,
+                   on_frame=frames.append, on_done=lambda: done.append(True),
+                   clock=lambda: 0.0)
+    guard = 0
+    while scheduled and guard < 100:
+        scheduled.pop(0)()
+        guard += 1
+
+    assert frames[-1] == 1.0
     assert done == [True]
 
 
