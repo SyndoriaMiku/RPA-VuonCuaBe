@@ -3,7 +3,6 @@ import os
 import subprocess
 import threading
 import tkinter as tk
-import tkinter.scrolledtext as scrolledtext
 from tkinter import filedialog, messagebox, ttk
 
 import customtkinter as ctk
@@ -38,12 +37,12 @@ COLORS = {
     "border": "#D9DEE3",
 }
 LOG_COLORS = {
-    "info": "#374151",
-    "ok": "#2E7D32",
-    "warn": "#B45309",
-    "error": "#C62828",
+    "info": C["text"],
+    "ok": C["ok"],
+    "warn": C["warn"],
+    "error": C["error"],
 }
-LINK_COLOR = "#1565C0"
+LINK_COLOR = C["link"]
 
 
 def _dwm_set_dark(hwnd, attribute, value):
@@ -311,18 +310,32 @@ class App:
         self.lbl_progress.pack(side=tk.LEFT, padx=(8, 0))
 
         # Nhật ký
-        log_header = ttk.Frame(main)
+        log_header = ctk.CTkFrame(main, fg_color="transparent")
         log_header.pack(fill=tk.X)
-        ttk.Label(log_header, text="Nhật ký", font=(FONT, 11, "bold")).pack(side=tk.LEFT)
-        ttk.Button(log_header, text="Xóa", command=self.clear_log, padding=(8, 3)).pack(side=tk.RIGHT)
-        ttk.Button(log_header, text="Sao chép tất cả", command=self.copy_all_log, padding=(8, 3)).pack(
+        ctk.CTkLabel(log_header, text="Nhật ký", text_color=C["text"], font=(FONT, 11, "bold"),
+                     fg_color="transparent").pack(side=tk.LEFT)
+        ctk.CTkButton(log_header, text="Xóa", command=self.clear_log, fg_color=C["surface_alt"],
+                      hover_color=C["hover"], text_color=C["text"], corner_radius=8, height=26,
+                      border_width=1, border_color=C["border"]).pack(side=tk.RIGHT)
+        ctk.CTkButton(log_header, text="Sao chép tất cả", command=self.copy_all_log,
+                      fg_color=C["surface_alt"], hover_color=C["hover"], text_color=C["text"],
+                      corner_radius=8, height=26, border_width=1, border_color=C["border"]).pack(
             side=tk.RIGHT, padx=6)
 
-        self.txt_log = scrolledtext.ScrolledText(
-            main, height=10, wrap=tk.WORD, bg="#FFFFFF", fg=LOG_COLORS["info"], font=("Consolas", 10),
-            relief=tk.FLAT, highlightbackground=COLORS["border"], highlightthickness=1, padx=8, pady=6,
+        log_box = ctk.CTkFrame(main, fg_color="transparent")
+        log_box.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
+        self.txt_log = tk.Text(
+            log_box, height=10, wrap=tk.WORD, bg=C["surface"], fg=LOG_COLORS["info"],
+            font=("Consolas", 10), relief=tk.FLAT, highlightbackground=C["border"],
+            highlightthickness=1, insertbackground=C["text"], selectbackground=C["hover"],
+            padx=8, pady=6,
         )
-        self.txt_log.pack(fill=tk.BOTH, expand=True, pady=(4, 0))
+        self.txt_log.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        self.log_scroll = ctk.CTkScrollbar(
+            log_box, command=self.txt_log.yview, fg_color=C["surface"], button_color=C["border"],
+            button_hover_color=C["hover"])
+        self.log_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.txt_log.configure(yscrollcommand=self.log_scroll.set)
         for level, color in LOG_COLORS.items():
             self.txt_log.tag_config(level, foreground=color)
         self.txt_log.config(state=tk.DISABLED, insertwidth=0, takefocus=1)
