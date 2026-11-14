@@ -541,6 +541,12 @@ class App:
             self.txt_log.config(state=tk.NORMAL)
             anchor = self.txt_log.index(tk.END + "-1c")
             self.txt_log.insert(tk.END, message + "\n", level)
+            now = time.monotonic()
+            # Tạo thẻ fade TRƯỚC thẻ link: Tk cho thẻ định nghĩa sau ưu tiên cao hơn, nên mã
+            # hàng vẫn giữ màu xanh bấm được dù cả dòng đang hiện dần.
+            if now - self._last_log_time >= 0.150:  # dòng về dồn dập thì bỏ fade cho khỏi trễ
+                self._fade_log_line(anchor, level)
+            self._last_log_time = now
             offset = message.find(code) if code else -1
             if offset >= 0:
                 self._link_seq += 1
@@ -549,13 +555,10 @@ class App:
                 end = f"{start}+{len(code)}c"
                 self.txt_log.tag_add(tag, start, end)
                 self.txt_log.tag_config(tag, foreground=LINK_COLOR, underline=True)
+                self.txt_log.tag_raise(tag)
                 self.txt_log.tag_bind(tag, "<Button-1>", lambda event, c=code: self.reveal_code(c))
                 self.txt_log.tag_bind(tag, "<Enter>", lambda event: self.txt_log.config(cursor="hand2"))
                 self.txt_log.tag_bind(tag, "<Leave>", lambda event: self.txt_log.config(cursor=""))
-            now = time.monotonic()
-            if now - self._last_log_time >= 0.150:  # dòng về dồn dập thì bỏ fade cho khỏi trễ
-                self._fade_log_line(anchor, level)
-            self._last_log_time = now
             self._smooth_scroll()
             self.txt_log.config(state=tk.DISABLED)
 
